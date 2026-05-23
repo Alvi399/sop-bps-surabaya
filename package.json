@@ -1,0 +1,16 @@
+{
+  "name": "sop-bps-surabaya-root",
+  "version": "1.0.0",
+  "description": "Root management for SOP BPS Surabaya",
+  "scripts": {
+    "dev": "concurrently --names \"FE,BE\" -c \"cyan,green\" \"npm run start:frontend\" \"npm run start:backend\"",
+    "start:backend": "node start-backend.js",
+    "start:frontend": "pnpm --dir shadcn-ui dev"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

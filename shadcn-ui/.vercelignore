@@ -1,0 +1,14 @@
+```
+node_modules
+.git
+__pycache__
+*.pyc
+.env
+.env.local
+backend/venv
+backend/env
+backend/.venv
+shadcn-ui/node_modules
+shadcn-ui/dist
+*.log
+.DS_Store
