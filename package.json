@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Root management for SOP BPS Surabaya",
   "scripts": {
-    "dev": "concurrently --names \"FE,BE\" -c \"cyan,green\" \"npm run start:frontend\" \"npm run start:backend\"",
+    "dev": "npx concurrently --names \"FE,BE\" -c \"cyan,green\" \"npm run start:frontend\" \"npm run start:backend\"",
     "start:backend": "node start-backend.js",
     "start:frontend": "pnpm --dir shadcn-ui dev"
   },
