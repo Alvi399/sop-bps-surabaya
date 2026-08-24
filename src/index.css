@@ -1,0 +1,279 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 47.4% 10%;
+    --foreground: 214.3 31.8% 91.4%;
+
+    --card: 222.2 38% 14%;
+    --card-foreground: 214.3 31.8% 91.4%;
+
+    --popover: 222.2 38% 14%;
+    --popover-foreground: 214.3 31.8% 91.4%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 28% 20%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 28% 18%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 28% 22%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 45%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 28% 22%;
+    --input: 217.2 28% 22%;
+    --ring: 217.2 91.2% 59.8%;
+
+    --sidebar-background: 222.2 47.4% 8%;
+    --sidebar-foreground: 214.3 31.8% 91.4%;
+    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217.2 28% 16%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 28% 16%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground transition-colors duration-200;
+  }
+}
+
+/* =========================================================
+   🌙 EYE-FRIENDLY DARK MODE STYLING & ADAPTATIONS
+   ========================================================= */
+.dark body {
+  background-color: #0b0f19;
+  color: #e2e8f0;
+}
+
+/* Smooth background gradients in dark mode */
+.dark .bg-gradient-to-br.from-blue-50,
+.dark .bg-gradient-to-br.from-blue-50.via-white.to-purple-50 {
+  background-image: linear-gradient(to bottom right, #0b0f19, #0f172a, #0b0f19) !important;
+}
+
+.dark .animate-blob {
+  opacity: 0.15 !important;
+}
+
+/* Cards & Surface Containers */
+.dark .bg-white\/80,
+.dark .bg-white\/90,
+.dark .bg-white\/70,
+.dark .bg-white\/50,
+.dark .bg-white {
+  background-color: rgba(22, 32, 50, 0.88) !important;
+  color: #f1f5f9 !important;
+  border-color: rgba(51, 65, 85, 0.6) !important;
+}
+
+.dark .bg-gray-50,
+.dark .bg-slate-50,
+.dark .bg-blue-50\/50,
+.dark .bg-blue-50\/30,
+.dark .bg-slate-50\/30 {
+  background-color: rgba(15, 23, 42, 0.65) !important;
+}
+
+/* Header & Navigation */
+.dark header {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+  border-color: #1e293b !important;
+  backdrop-filter: blur(12px);
+}
+
+.dark header .bg-gray-50 {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark aside {
+  background-color: #090e18 !important;
+  border-color: #1e293b !important;
+}
+
+.dark aside .border-b,
+.dark aside .border-t {
+  border-color: #1e293b !important;
+}
+
+.dark aside .bg-gradient-to-r.from-blue-50.to-purple-50,
+.dark aside .bg-gradient-to-r.from-gray-50 {
+  background: linear-gradient(to right, #090e18, #0f172a) !important;
+}
+
+.dark aside .bg-gray-50 {
+  background: #090e18 !important;
+  border-color: #1e293b !important;
+}
+
+.dark footer {
+  background-image: linear-gradient(to right, #090e18, #0b0f19, #090e18) !important;
+  border-color: #1e293b !important;
+}
+
+.dark footer .text-gray-800,
+.dark footer .text-gray-700 {
+  color: #e2e8f0 !important;
+}
+
+.dark footer .text-gray-600 {
+  color: #94a3b8 !important;
+}
+
+.dark footer .border-gray-200 {
+  border-color: #1e293b !important;
+}
+
+/* Typography contrast adjustments */
+.dark .text-gray-900,
+.dark .text-slate-900,
+.dark .text-gray-800,
+.dark .text-slate-800 {
+  color: #f8fafc !important;
+}
+
+.dark .text-gray-700,
+.dark .text-slate-700 {
+  color: #cbd5e1 !important;
+}
+
+.dark .text-gray-600,
+.dark .text-slate-600 {
+  color: #94a3b8 !important;
+}
+
+.dark .text-gray-500,
+.dark .text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Borders & Dividers */
+.dark .border-gray-200,
+.dark .border-slate-200,
+.dark .border-gray-100,
+.dark .border-slate-100 {
+  border-color: #243044 !important;
+}
+
+/* Tables */
+.dark table thead tr {
+  background: linear-gradient(to right, #131c2e, #1a233a) !important;
+  color: #cbd5e1 !important;
+}
+
+.dark table tbody tr:hover {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+
+.dark table td,
+.dark table th {
+  border-color: #1e293b !important;
+}
+
+/* Forms & Inputs */
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark textarea,
+.dark select {
+  background-color: #131c2e !important;
+  color: #f1f5f9 !important;
+  border-color: #2b394f !important;
+}
+
+.dark input:focus,
+.dark textarea:focus {
+  border-color: #3b82f6 !important;
+}
+
+.dark select option {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+/* Dropdowns & Popovers */
+.dark [role="menu"],
+.dark [role="listbox"],
+.dark [data-radix-popper-content-wrapper] > div {
+  background-color: #162032 !important;
+  border-color: #243044 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark [role="menuitem"]:hover,
+.dark [role="option"]:hover,
+.dark [data-highlighted] {
+  background-color: #24324a !important;
+  color: #ffffff !important;
+}
+
+/* Modals & Dialogs */
+.dark [role="dialog"] {
+  background-color: #111a2c !important;
+  border-color: #243044 !important;
+  color: #f1f5f9 !important;
+}
+
