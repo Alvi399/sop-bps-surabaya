@@ -25,9 +25,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, CheckCircle } from "lucide-react";
 import { notifyRealtimeUpdate } from "@/lib/realtime";
 import { DEPARTMENTS } from "@/lib/departments";
+import { FlowchartSymbolPicker, ExecutorRouteData, FlowchartConnection } from "@/components/sop/FlowchartSymbolPicker";
+import { FlowchartSymbolIcon } from "@/lib/flowchartSymbols";
 
 // ✅ API Configuration
-const API_URL = "";
+import { API_URL } from "@/lib/api";
 
 // ✅ Helper function untuk get token
 const getAuthToken = () => {
@@ -65,7 +67,12 @@ interface FlowchartStep {
   };
   keterangan: string;
   shapes: { [key: string]: string }; // Map of pelaksana name -> shape
-  shapeText?: { [key: string]: string } | string; // Text label inside shape
+  shapeText?: { [key: string]: string } | string; // (legacy)
+  connections?: { [key: string]: FlowchartConnection[] }; // Banyak koneksi fleksibel per pelaksana!
+  executorRoutes?: { [key: string]: ExecutorRouteData }; // Rute spesifik per pelaksana!
+  targetStep?: number; // Target langkah selanjutnya (default: no + 1, 0 = selesai)
+  returnStep?: number; // Target langkah alternatif / kembali (misal jika revisi / tidak)
+  returnLabel?: string; // (legacy)
 }
 
 // Mini Flowchart Live Simulator Component
@@ -83,6 +90,7 @@ function FlowchartLivePreview({
           <Workflow className="h-4 w-4 text-blue-400" />
           <span className="text-sm font-semibold text-slate-200">Live Preview Alur Diagram Flowchart (Swimlane BPS)</span>
         </div>
+        <span className="text-[11px] text-slate-400 font-medium">25+ Bentuk Simbol Visual & Alur Fleksibel Multi-Koneksi</span>
       </div>
 
       <div className="overflow-x-auto w-full">
@@ -106,50 +114,70 @@ function FlowchartLivePreview({
           {steps.map((step, sIdx) => {
             return (
               <div key={sIdx} className="contents group">
-                <div className="p-2.5 text-[11px] text-slate-300 border-b border-slate-800/80 flex items-center gap-2 bg-slate-900/60">
-                  <span className="w-5 h-5 rounded-full bg-blue-900/60 text-blue-300 text-[10px] flex items-center justify-center font-bold shrink-0 border border-blue-600/40">
-                    {step.no}
-                  </span>
-                  <span className="truncate text-slate-200 font-medium" title={step.aktivitas || `Langkah ${step.no}`}>
-                    {step.aktivitas || `Langkah ${step.no}`}
-                  </span>
+                <div className="p-2.5 text-[11px] text-slate-300 border-b border-slate-800/80 flex flex-col justify-center bg-slate-900/60 gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-blue-900/60 text-blue-300 text-[10px] flex items-center justify-center font-bold shrink-0 border border-blue-600/40">
+                      {step.no}
+                    </span>
+                    <span className="truncate text-slate-200 font-medium" title={step.aktivitas || `Langkah ${step.no}`}>
+                      {step.aktivitas || `Langkah ${step.no}`}
+                    </span>
+                  </div>
                 </div>
 
                 {columns.map((col, cIdx) => {
                   const isActive = !!step.pelaksana[col];
                   const symbol = (step.shapes && step.shapes[col] && step.shapes[col] !== "auto") 
                     ? step.shapes[col] 
-                    : (sIdx === 0 || sIdx === steps.length - 1 ? "oval" : "rectangle");
-                  
-                  const rawLabel = typeof step.shapeText === 'string' ? step.shapeText : (step.shapeText && step.shapeText[col]);
-                  const label = rawLabel || (
-                    sIdx === 0 ? "Mulai" : 
-                    sIdx === steps.length - 1 ? "Selesai" : 
-                    symbol === "diamond" ? "Validasi" : 
-                    symbol === "document" ? "Dokumen" : 
-                    symbol === "database" ? "Simpan" : "Proses"
-                  );
+                    : (sIdx === 0 || sIdx === steps.length - 1 ? "terminator" : "process");
+                  const conns = (step.connections?.[col] && step.connections[col].length > 0)
+                    ? step.connections[col]
+                    : (step.executorRoutes?.[col] ? [
+                        { targetStep: step.executorRoutes[col].targetStep ?? 0, targetPelaksana: step.executorRoutes[col].targetPelaksana },
+                        ...(step.executorRoutes[col].returnStep ? [{ targetStep: step.executorRoutes[col].returnStep, targetPelaksana: step.executorRoutes[col].returnPelaksana }] : [])
+                      ] : [{ targetStep: sIdx + 2 <= steps.length ? sIdx + 2 : 0 }]);
 
                   return (
                     <div
                       key={cIdx}
-                      className="p-2.5 flex flex-col items-center justify-center border-b border-slate-800/80 border-l border-slate-800/60 relative min-h-[58px] bg-slate-900/40"
+                      className="p-2.5 flex flex-col items-center justify-center border-b border-slate-800/80 border-l border-slate-800/60 relative min-h-[64px] bg-slate-900/40"
                     >
                       {isActive ? (
-                        <div
-                          className={`px-3 py-1 text-[10.5px] font-bold shadow-md flex items-center justify-center text-center transition-all ${
-                            symbol === "oval"
-                              ? "rounded-full bg-emerald-600 text-white border border-emerald-300 min-w-[75px]"
-                              : symbol === "diamond"
-                              ? "border-2 border-amber-300 bg-amber-600 text-white rounded min-w-[70px]"
-                              : symbol === "document"
-                              ? "rounded-sm border border-purple-300 bg-purple-600 text-white min-w-[70px]"
-                              : symbol === "database"
-                              ? "rounded-sm border border-cyan-300 bg-cyan-600 text-white min-w-[70px]"
-                              : "rounded-md bg-blue-600 text-white border border-blue-300 min-w-[70px]"
-                          }`}
-                        >
-                          {label}
+                        <div className="flex flex-col items-center gap-1 w-full">
+                          {/* Polosan plain shapes dengan icon SVG presisi */}
+                          <div className="p-1 bg-white rounded shadow-sm border border-slate-300 dark:border-slate-600 flex items-center justify-center text-slate-800">
+                            <FlowchartSymbolIcon symbolId={symbol} className="w-10 h-7" />
+                          </div>
+
+                          {/* Specific route badges for this executor */}
+                          {conns.map((c, idx) => {
+                            const isCurrent = c.targetStep === sIdx + 1;
+                            const isEnd = c.targetStep === 0;
+                            const isBack = c.targetStep > 0 && c.targetStep < sIdx + 1;
+                            const targetText = c.targetPelaksana ? ` (${c.targetPelaksana})` : '';
+                            return (
+                              <span
+                                key={idx}
+                                className={`text-[8.5px] font-semibold px-1 rounded border max-w-[120px] truncate ${
+                                  isEnd
+                                    ? "text-slate-400 bg-slate-950 border-slate-800"
+                                    : isCurrent
+                                    ? "text-purple-300 bg-purple-950/80 border-purple-800/60"
+                                    : isBack
+                                    ? "text-amber-300 bg-amber-950/80 border-amber-800/60"
+                                    : "text-cyan-300 bg-cyan-950/80 border-cyan-800/60"
+                                }`}
+                              >
+                                {isEnd
+                                  ? "🏁 Selesai"
+                                  : isCurrent
+                                  ? `➔ L-${c.targetStep}${targetText}`
+                                  : isBack
+                                  ? `↶ L-${c.targetStep}${targetText}`
+                                  : `➔ L-${c.targetStep}${targetText}`}
+                              </span>
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="w-1.5 h-1.5 rounded-full bg-slate-800"></div>
@@ -223,7 +251,6 @@ export default function CreateSOP() {
   const [showFlowchart, setShowFlowchart] = useState(false);
   // custom shape images: { stepIndex: Uint8Array }
   const [customShapeImages, setCustomShapeImages] = useState<{ [key: number]: Uint8Array }>({});
-  const [finalAction, setFinalAction] = useState<string>("none");
 
   const [activeTab, setActiveTab] = useState("generate"); // "generate" or "upload"
 
@@ -263,9 +290,6 @@ export default function CreateSOP() {
           if (parsed.uploadFormData) {
             setUploadFormData(parsed.uploadFormData);
           }
-          if (parsed.finalAction) {
-            setFinalAction(parsed.finalAction);
-          }
           if (parsed.activeTab) {
             setActiveTab(parsed.activeTab);
           }
@@ -288,7 +312,6 @@ export default function CreateSOP() {
           pelaksanaColumns,
           flowchartSteps,
           uploadFormData,
-          finalAction,
           activeTab,
           savedAt: new Date().toISOString(),
         };
@@ -297,7 +320,7 @@ export default function CreateSOP() {
     } catch (e) {
       console.error("Error auto-saving draft:", e);
     }
-  }, [formData, pelaksanaColumns, flowchartSteps, uploadFormData, finalAction, activeTab]);
+  }, [formData, pelaksanaColumns, flowchartSteps, uploadFormData, activeTab]);
 
   const clearAutoSaveDraft = () => {
     try {
@@ -457,28 +480,66 @@ export default function CreateSOP() {
   };
 
   const updateFlowchartStep = (index: number, field: string, value: any) => {
-    const updated = [...flowchartSteps];
+    setFlowchartSteps((prevSteps) => {
+      return prevSteps.map((step, i) => {
+        if (i !== index) return step;
 
-    if (field.startsWith("pelaksana.")) {
-      const pelaksanaKey = field.split(".")[1];
-      updated[index].pelaksana[pelaksanaKey] = value;
-    } else if (field.startsWith("shapes.")) {
-      const pelaksanaKey = field.split(".")[1];
-      updated[index].shapes[pelaksanaKey] = value;
-    } else if (field.startsWith("shapeText.")) {
-      const pelaksanaKey = field.split(".")[1];
-      if (typeof updated[index].shapeText !== 'object' || updated[index].shapeText === null) {
-        updated[index].shapeText = {};
-      }
-      (updated[index].shapeText as any)[pelaksanaKey] = value;
-    } else if (field.startsWith("mutuBaku.")) {
-      const mutuBakuKey = field.split(".")[1] as keyof typeof updated[0]["mutuBaku"];
-      updated[index].mutuBaku[mutuBakuKey] = value;
-    } else {
-      (updated[index] as any)[field] = value;
-    }
+        const updatedStep = {
+          ...step,
+          pelaksana: { ...step.pelaksana },
+          shapes: { ...(step.shapes || {}) },
+          connections: { ...(step.connections || {}) },
+          executorRoutes: { ...(step.executorRoutes || {}) },
+          shapeText: typeof step.shapeText === 'object' && step.shapeText !== null ? { ...step.shapeText } : step.shapeText,
+          mutuBaku: { ...step.mutuBaku },
+        };
 
-    setFlowchartSteps(updated);
+        if (field.startsWith("pelaksana.")) {
+          const pelaksanaKey = field.split(".")[1];
+          updatedStep.pelaksana[pelaksanaKey] = value;
+          if (value) {
+            if (!updatedStep.shapes[pelaksanaKey]) {
+              updatedStep.shapes[pelaksanaKey] = index === 0 || index === prevSteps.length - 1 ? "terminator" : "process";
+            }
+            if (!updatedStep.connections[pelaksanaKey] || updatedStep.connections[pelaksanaKey].length === 0) {
+              const defTarget = index + 2 <= prevSteps.length ? index + 2 : 0;
+              updatedStep.connections[pelaksanaKey] = [{ targetStep: defTarget }];
+            }
+          }
+        } else if (field.startsWith("shapes.")) {
+          const pelaksanaKey = field.split(".")[1];
+          updatedStep.shapes[pelaksanaKey] = value;
+        } else if (field.startsWith("connections.")) {
+          const pelaksanaKey = field.split(".")[1];
+          updatedStep.connections[pelaksanaKey] = value;
+          // Sinkronkan juga executorRoutes secara atomik agar tidak saling menimpa
+          if (Array.isArray(value) && value.length > 0) {
+            updatedStep.executorRoutes[pelaksanaKey] = {
+              targetStep: value[0].targetStep,
+              targetPelaksana: value[0].targetPelaksana,
+              returnStep: value[1]?.targetStep,
+              returnPelaksana: value[1]?.targetPelaksana,
+            };
+          }
+        } else if (field.startsWith("executorRoutes.")) {
+          const pelaksanaKey = field.split(".")[1];
+          updatedStep.executorRoutes[pelaksanaKey] = value;
+        } else if (field.startsWith("shapeText.")) {
+          const pelaksanaKey = field.split(".")[1];
+          if (typeof updatedStep.shapeText !== 'object' || updatedStep.shapeText === null) {
+            updatedStep.shapeText = {};
+          }
+          (updatedStep.shapeText as any)[pelaksanaKey] = value;
+        } else if (field.startsWith("mutuBaku.")) {
+          const mutuBakuKey = field.split(".")[1] as keyof typeof updatedStep.mutuBaku;
+          updatedStep.mutuBaku[mutuBakuKey] = value;
+        } else {
+          (updatedStep as any)[field] = value;
+        }
+
+        return updatedStep;
+      });
+    });
   };
 
   const autoOptimizeFlowchart = () => {
@@ -541,7 +602,7 @@ export default function CreateSOP() {
     }
     setIsGenerating(true);
     try {
-      const response = await fetch("http://127.0.0.1:8000/generate_sop", {
+      const response = await fetch(`${API_URL}/generate_sop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: formData.title }),
@@ -621,9 +682,10 @@ export default function CreateSOP() {
         effective_date: uploadFormData.effectiveDate || new Date().toISOString().split('T')[0],
         expiry_date: uploadFormData.expiryDate || null,
         file_base64: base64Pdf,
+        is_manual: true,
       };
 
-      const response = await fetch(`${API_URL}/api/sops`, {
+      const response = await fetch(`${API_URL}/sops`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -727,7 +789,6 @@ export default function CreateSOP() {
         flowchartSteps: flowchartSteps,
         pelaksanaColumns: pelaksanaColumns,
         customShapeImages: customShapeImages,
-        finalAction: finalAction,
       });
 
       console.log("📄 PDF generated:", pdfBytes.length, "bytes");
@@ -748,6 +809,7 @@ export default function CreateSOP() {
         effective_date: formData.effectiveDate || new Date().toISOString().split('T')[0],
         expiry_date: formData.expiryDate || null,
         file_base64: base64Pdf, // ✅ Kirim sebagai base64
+        is_manual: false,
         // Data tambahan untuk COP
         tanggal_pembuatan: formData.tanggalPembuatan || null,
         tanggal_revisi: formData.tanggalRevisi || null,
@@ -767,7 +829,7 @@ export default function CreateSOP() {
       console.log("📤 Uploading to backend...");
 
       // 6. Send to backend
-      const response = await fetch(`${API_URL}/api/sops`, {
+      const response = await fetch(`${API_URL}/sops`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -874,7 +936,6 @@ export default function CreateSOP() {
         flowchartSteps: flowchartSteps,
         pelaksanaColumns: pelaksanaColumns,
         customShapeImages: customShapeImages,
-        finalAction: finalAction,
       });
 
       const blob = new Blob([pdfBytes as any], { type: "application/pdf" });
@@ -890,14 +951,12 @@ export default function CreateSOP() {
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex">
-      <aside className="fixed left-0 top-0 h-full w-64 z-30">
-        <Sidebar activeMenu="create" />
-      </aside>
+      <Sidebar activeMenu="create" />
 
-      <div className="ml-64 flex-1 flex flex-col relative z-10">
+      <div className="ml-0 lg:ml-64 flex-1 min-w-0 flex flex-col relative z-10">
         <Header />
 
-        <main className="flex-1 overflow-y-auto scroll-smooth p-6">
+        <main className="flex-1 overflow-y-auto scroll-smooth p-4 md:p-6">
           {/* Header - Keep existing */}
           <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
@@ -959,7 +1018,7 @@ export default function CreateSOP() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                         <div>
                           <Label htmlFor="code" className="text-sm font-medium text-gray-700">Nomor SOP</Label>
                           <Input
@@ -1027,7 +1086,7 @@ export default function CreateSOP() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-3 gap-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
                         <div>
                           <Label htmlFor="department" className="text-sm font-medium text-gray-700">Tim</Label>
                           <Select
@@ -1081,7 +1140,7 @@ export default function CreateSOP() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Column 1 */}
                         <div className="space-y-4">
                           <div>
@@ -1343,31 +1402,19 @@ export default function CreateSOP() {
                                           </div>
                                           
                                           {step.pelaksana[pel] && (
-                                            <div className="mt-1 pl-6 space-y-1">
-                                              <Label className="text-[10px] text-gray-500 mb-0.5 block uppercase font-bold">Bentuk Simbol</Label>
-                                              <Select
-                                                value={step.shapes[pel] || "auto"}
-                                                onValueChange={(val) => updateFlowchartStep(index, `shapes.${pel}`, val)}
-                                              >
-                                                <SelectTrigger className="h-7 text-[10px] bg-white">
-                                                  <SelectValue placeholder="Bentuk" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                  <SelectItem value="auto">Otomatis</SelectItem>
-                                                  <SelectItem value="oval">Mulai/Selesai (Oval)</SelectItem>
-                                                  <SelectItem value="rectangle">Proses (Kotak)</SelectItem>
-                                                  <SelectItem value="diamond">Keputusan (Belah Ketupat)</SelectItem>
-                                                  <SelectItem value="document">Dokumen / Berkas</SelectItem>
-                                                  <SelectItem value="database">Database / Simpan</SelectItem>
-                                                </SelectContent>
-                                              </Select>
-
-                                              <Input
-                                                value={typeof step.shapeText === 'object' && step.shapeText ? (step.shapeText[pel] || "") : (typeof step.shapeText === 'string' ? step.shapeText : "")}
-                                                onChange={(e) => updateFlowchartStep(index, `shapeText.${pel}`, e.target.value)}
-                                                placeholder="Teks Simbol (e.g. Mulai)"
-                                                className="h-6 text-[10px] px-1.5 w-full bg-blue-50/50 focus:bg-white text-center font-medium"
-                                                title="Teks yang akan dicetak di dalam simbol flowchart"
+                                            <div className="mt-2 pl-6">
+                                              <FlowchartSymbolPicker
+                                                currentSymbol={step.shapes[pel] || (index === 0 || index === flowchartSteps.length - 1 ? "terminator" : "process")}
+                                                onSymbolChange={(newSymbol) => updateFlowchartStep(index, `shapes.${pel}`, newSymbol)}
+                                                executorName={pel}
+                                                stepIndex={index}
+                                                totalSteps={flowchartSteps.length}
+                                                connections={step.connections?.[pel]}
+                                                onConnectionsChange={(newConns) => updateFlowchartStep(index, `connections.${pel}`, newConns)}
+                                                routeData={step.executorRoutes?.[pel]}
+                                                onRouteChange={(newRoute) => updateFlowchartStep(index, `executorRoutes.${pel}`, newRoute)}
+                                                allColumns={pelaksanaColumns}
+                                                allSteps={flowchartSteps}
                                               />
                                             </div>
                                           )}
@@ -1469,29 +1516,6 @@ export default function CreateSOP() {
                   {/* Action Buttons */}
                   <Card className="bg-white/80 backdrop-blur-md shadow-2xl overflow-visible">
                     <CardContent className="pt-6">
-                      {/* Opsi Aksi Lanjutan di Akhir Flowchart - Moved outside steps card */}
-                      <div className="mb-6 pb-6 border-b border-gray-100">
-                        <Label className="text-sm font-bold mb-3 block text-blue-700">
-                          🏁 Aksi Lanjutan di Akhir Flowchart
-                        </Label>
-                        <select 
-                          className="w-full bg-white border border-gray-200 rounded-md h-11 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none shadow-sm cursor-pointer"
-                          value={finalAction || "none"} 
-                          onChange={(e) => setFinalAction(e.target.value)}
-                          style={{
-                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'right 0.75rem center',
-                            backgroundSize: '1rem'
-                          }}
-                        >
-                          <option value="none">Selesai (Tidak ada diagram lanjutan)</option>
-                          <option value="organisasi">Lanjut ke Diagram Organisasi</option>
-                          <option value="workflow">Lanjut ke Alur Kerja (Workflow)</option>
-                          <option value="lainnya">Lanjut ke Diagram Lainnya</option>
-                        </select>
-                      </div>
-
                       <div className="flex gap-3 flex-wrap">
                         <Button variant="outline" disabled={isSaving} onClick={() => handleSave(true)}>
                           <Save className="h-4 w-4 mr-1" />
@@ -1557,7 +1581,7 @@ export default function CreateSOP() {
                   </div>
 
                   {/* Form fields */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="upload-code">Kode SOP</Label>
                       <Input
@@ -1580,7 +1604,7 @@ export default function CreateSOP() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="upload-department">Tim *</Label>
                       <Select
@@ -1608,7 +1632,7 @@ export default function CreateSOP() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="upload-effective">Tanggal Berlaku *</Label>
                       <Input

@@ -12,7 +12,7 @@ import { ArrowLeft, Download } from "lucide-react";
 import { notifyRealtimeUpdate } from "@/lib/realtime";
 import axios from "axios";
 
-const API_URL = "";
+import { API_URL } from "@/lib/api";
 
 export default function EditPDF() {
   const { id } = useParams();
@@ -43,7 +43,7 @@ export default function EditPDF() {
 
       console.log("🔍 Fetching SOP with ID:", id);
 
-      const response = await axios.get(`${API_URL}/api/sops/${id}`, {
+      const response = await axios.get(`${API_URL}/sops/${id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -59,7 +59,7 @@ export default function EditPDF() {
         console.log("📥 Fetching PDF for preview...");
         
         const pdfResponse = await axios.get(
-          `${API_URL}/api/sops/${id}/download`,
+          `${API_URL}/sops/${id}/download`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -118,7 +118,7 @@ export default function EditPDF() {
       // 1. Download PDF file dari backend
       console.log("📥 Downloading original PDF...");
       const pdfResponse = await axios.get(
-        `${API_URL}/api/sops/${id}/download`,
+        `${API_URL}/sops/${id}/download`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -138,7 +138,8 @@ export default function EditPDF() {
 
       console.log("🔄 Sending to edit-pdf endpoint...");
 
-      const editResponse = await fetch(`${API_URL}/edit-pdf/`, {
+      const backendRoot = API_URL.replace(/\/api\/?$/, "");
+      const editResponse = await fetch(`${backendRoot}/edit-pdf/`, {
         method: "POST",
         body: formData,
       });
@@ -205,15 +206,13 @@ export default function EditPDF() {
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-64 z-30">
-        <Sidebar activeMenu="management" />
-      </aside>
+      <Sidebar activeMenu="management" />
 
       {/* Konten utama */}
-      <div className="ml-64 flex-1 flex flex-col">
+      <div className="ml-0 lg:ml-64 flex-1 min-w-0 flex flex-col">
         <Header />
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="mb-8">
             <Button
               variant="ghost"

@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-// Determine API URL based on environment
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+// Determine API URL based on environment (Defaults directly to Cloudflare tunnel VPS backend)
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://backendsop.serverbpsjosjis.dpdns.org/api';
+const API_URL = API_BASE_URL;
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -44,4 +45,4 @@ apiClient.interceptors.response.use(
 );
 
 export default apiClient;
-export { API_BASE_URL };
+export { API_BASE_URL, API_URL };

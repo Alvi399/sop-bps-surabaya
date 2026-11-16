@@ -47,7 +47,7 @@ import { toast } from "sonner";
 import { AuthService } from "@/lib/auth";
 import axios from "axios";
 
-const API_URL = "/api";
+import { API_URL } from "@/lib/api";
 
 interface User {
   id: string;
@@ -468,9 +468,7 @@ export default function Settings() {
       </div>
 
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-64 z-30">
-        <Sidebar activeMenu="settings" />
-      </aside>
+      <Sidebar activeMenu="settings" />
 
       <input
         ref={fileInputRef}
@@ -480,10 +478,10 @@ export default function Settings() {
         className="hidden"
       />
 
-      <div className="ml-64 flex-1 flex flex-col relative z-10">
+      <div className="ml-0 lg:ml-64 flex-1 min-w-0 flex flex-col relative z-10">
         <Header />
 
-        <main className="flex-1 overflow-y-auto scroll-smooth p-8">
+        <main className="flex-1 overflow-y-auto scroll-smooth p-4 md:p-8">
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-3">
               <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
@@ -508,40 +506,40 @@ export default function Settings() {
           )}
 
           <Tabs defaultValue="profile" className="w-full">
-            <div className="grid grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Left menu */}
-              <div className="col-span-3 space-y-6">
-                <Card className="border border-slate-200/80 dark:border-slate-800 shadow-sm sticky top-6 bg-white dark:bg-slate-900">
+              <div className="lg:col-span-4 xl:col-span-3 space-y-4 sm:space-y-6">
+                <Card className="border border-slate-200/80 dark:border-slate-800 shadow-sm lg:sticky lg:top-6 bg-white dark:bg-slate-900">
                   <CardContent className="p-3">
-                    <TabsList className="flex flex-col h-auto w-full bg-transparent gap-1">
+                    <TabsList className="flex flex-row lg:flex-col overflow-x-auto h-auto w-full bg-transparent gap-1">
                       <TabsTrigger
                         value="profile"
-                        className="w-full justify-start data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white text-slate-700 dark:text-slate-300 rounded-lg px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-all font-medium"
+                        className="flex-1 lg:w-full justify-center lg:justify-start data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white text-slate-700 dark:text-slate-300 rounded-lg px-3 lg:px-4 py-2.5 lg:py-3 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-all font-medium text-xs sm:text-sm whitespace-nowrap"
                       >
-                        <User className="h-4 w-4 mr-3" />
+                        <User className="h-4 w-4 mr-2 lg:mr-3" />
                         Profil Saya
                       </TabsTrigger>
 
                       <TabsTrigger
                         value="security"
-                        className="w-full justify-start data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white text-slate-700 dark:text-slate-300 rounded-lg px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-all font-medium"
+                        className="flex-1 lg:w-full justify-center lg:justify-start data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white text-slate-700 dark:text-slate-300 rounded-lg px-3 lg:px-4 py-2.5 lg:py-3 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-all font-medium text-xs sm:text-sm whitespace-nowrap"
                       >
-                        <Lock className="h-4 w-4 mr-3" />
+                        <Lock className="h-4 w-4 mr-2 lg:mr-3" />
                         Keamanan
                       </TabsTrigger>
 
                       <TabsTrigger
                         value="system"
-                        className="w-full justify-start data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white text-slate-700 dark:text-slate-300 rounded-lg px-4 py-3 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-all font-medium"
+                        className="flex-1 lg:w-full justify-center lg:justify-start data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-purple-600 data-[state=active]:text-white text-slate-700 dark:text-slate-300 rounded-lg px-3 lg:px-4 py-2.5 lg:py-3 hover:bg-slate-100 dark:hover:bg-slate-800/70 transition-all font-medium text-xs sm:text-sm whitespace-nowrap"
                       >
-                        <Database className="h-4 w-4 mr-3" />
+                        <Database className="h-4 w-4 mr-2 lg:mr-3" />
                         Sistem
                       </TabsTrigger>
                     </TabsList>
                   </CardContent>
                 </Card>
 
-                <Card className="border border-slate-200/80 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900">
+                <Card className="border border-slate-200/80 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900 hidden sm:block">
                   <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
                     <CardTitle className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                       <Activity className="h-4 w-4 text-blue-500" />
@@ -566,7 +564,7 @@ export default function Settings() {
               </div>
 
               {/* Right content */}
-              <div className="col-span-9">
+              <div className="lg:col-span-8 xl:col-span-9 min-w-0">
                 {/* PROFILE TAB */}
                 <TabsContent value="profile" className="mt-0 space-y-6">
                   <Card className="border-0 shadow-sm bg-gradient-to-br from-violet-500 via-purple-500 to-pink-500 text-white">

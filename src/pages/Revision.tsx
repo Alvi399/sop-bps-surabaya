@@ -21,7 +21,7 @@ import { toast } from 'sonner';
 import { useRealtimeSubscription, notifyRealtimeUpdate } from '@/lib/realtime';
 import axios from "axios";
 
-const API_URL = "/api";
+import { API_URL } from "@/lib/api";
 
 const getAuthToken = () => {
   const authData = localStorage.getItem('bps_sop_auth');
@@ -579,8 +579,8 @@ export function RevisionSection() {
 
             {/* TAB: DISETUJUI */}
             <TabsContent value="approved">
-              <div className="rounded-xl border border-gray-200 overflow-hidden bg-white/50 backdrop-blur-sm">
-                <Table>
+              <div className="rounded-xl border border-gray-200 overflow-x-auto bg-white/50 backdrop-blur-sm">
+                <Table className="min-w-[750px]">
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-blue-50 to-purple-50">
                       <TableHead>SOP</TableHead>
@@ -676,8 +676,8 @@ export function RevisionSection() {
 
             {/* TAB: DITOLAK */}
             <TabsContent value="rejected">
-              <div className="rounded-xl border border-gray-200 overflow-hidden bg-white/50 backdrop-blur-sm">
-                <Table>
+              <div className="rounded-xl border border-gray-200 overflow-x-auto bg-white/50 backdrop-blur-sm">
+                <Table className="min-w-[750px]">
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-blue-50 to-purple-50">
                       <TableHead>SOP</TableHead>
@@ -930,13 +930,11 @@ export function RevisionSection() {
 export default function Revision() {
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex">
-      <aside className="fixed left-0 top-0 h-full w-64 z-30">
-        <Sidebar activeMenu="management" />
-      </aside>
+      <Sidebar activeMenu="management" />
 
-      <div className="ml-64 flex-1 min-w-0 flex flex-col relative z-10">
+      <div className="ml-0 lg:ml-64 flex-1 min-w-0 flex flex-col relative z-10">
         <Header />
-        <main className="flex-1 overflow-y-auto scroll-smooth p-6">
+        <main className="flex-1 overflow-y-auto scroll-smooth p-4 md:p-6">
           <RevisionSection />
         </main>
         <Footer />

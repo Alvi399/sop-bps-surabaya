@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import axios from "axios";
 import { mockSOPDocuments } from "@/lib/mockData";
 
-const API_URL = "/api";
+import { API_URL } from "@/lib/api";
 
 export default function Dashboard() {
   const [sopDocuments, setSOPDocuments] = useState<SOPDocument[]>([]);
@@ -265,28 +265,26 @@ export default function Dashboard() {
         <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.5))] bg-top"></div>
       </div>
 
-      {/* Sidebar tetap di kiri */}
-      <aside className="fixed left-0 top-0 h-full w-64 z-30">
-        <Sidebar activeMenu="dashboard" />
-      </aside>
+      {/* Sidebar navigasi */}
+      <Sidebar activeMenu="dashboard" />
 
       {/* Konten utama */}
-      <div className="ml-64 flex-1 flex flex-col relative z-10">
+      <div className="ml-0 lg:ml-64 flex-1 min-w-0 flex flex-col relative z-10">
         <Header />
 
         {/* Bagian utama yang scrollable */}
-        <main className="flex-1 overflow-y-auto scroll-smooth p-6">
-          <div className="mb-8 flex justify-between items-center">
+        <main className="flex-1 overflow-y-auto scroll-smooth p-4 md:p-6">
+          <div className="mb-6 md:mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
                 Selamat Datang di Dashboard SOP
               </h1>
-              <p className="text-gray-600">
+              <p className="text-sm md:text-base text-gray-600">
                 Kelola dan pantau Standard Operating Procedure BPS Kota Surabaya
               </p>
               {/* ✅ TAMBAH: Info SOP yang ditampilkan */}
               {selectedYear !== "all" && (
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-xs md:text-sm text-gray-500 mt-1">
                   Menampilkan {filteredSOPDocuments.length} dari {sopDocuments.length} SOP untuk tahun {selectedYear}
                 </p>
               )}
@@ -294,7 +292,7 @@ export default function Dashboard() {
             
             {/* ✅ UPDATE: Filter Tahun */}
             <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-40 bg-white/80 backdrop-blur-md border-white/20 shadow-lg hover:shadow-xl transition-all">
+              <SelectTrigger className="w-full sm:w-40 bg-white/80 backdrop-blur-md border-white/20 shadow-lg hover:shadow-xl transition-all">
                 <SelectValue placeholder="Pilih tahun" />
               </SelectTrigger>
               <SelectContent>

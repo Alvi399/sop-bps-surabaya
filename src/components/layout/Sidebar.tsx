@@ -9,11 +9,12 @@ import {
   History,
   Settings,
   Activity,
+  X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import axios from "axios";
 
-const API_URL = "/api";
+import { API_URL } from "@/lib/api";
 
 interface SidebarProps {
   activeMenu?: string;
@@ -32,6 +33,25 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // 📱 Listen to mobile drawer events
+  useEffect(() => {
+    const handleToggle = () => setMobileOpen(prev => !prev);
+    const handleClose = () => setMobileOpen(false);
+
+    window.addEventListener('toggle-mobile-sidebar', handleToggle);
+    window.addEventListener('close-mobile-sidebar', handleClose);
+    return () => {
+      window.removeEventListener('toggle-mobile-sidebar', handleToggle);
+      window.removeEventListener('close-mobile-sidebar', handleClose);
+    };
+  }, []);
+
+  // Tutup sidebar otomatis saat berpindah halaman
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   // ✅ Fetch user data from backend
   useEffect(() => {
@@ -134,62 +154,87 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
   };
 
   return (
-    <aside className="fixed top-0 left-0 h-screen w-64 bg-white dark:bg-slate-950 shadow-lg border-r border-gray-200 dark:border-slate-800 flex flex-col z-50 transition-colors duration-200">
-      {/* 🔷 Logo */}
-      <div className="h-20 px-6 border-b border-gray-200 dark:border-slate-800 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-900 dark:to-slate-900 flex items-center transition-colors duration-200">
-        <div className="flex items-center space-x-3">
-          <img
-            src="/bps-logo.svg"
-            onError={(e) => {
-              e.currentTarget.src = "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Lambang_Badan_Pusat_Statistik_%28BPS%29_Indonesia.svg/1200px-Lambang_Badan_Pusat_Statistik_%28BPS%29_Indonesia.svg.png";
-            }}
-            alt="Logo BPS"
-            className="h-10 w-10 object-contain drop-shadow-md"
-          />
-          <div>
-            <h2 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent leading-tight">
-              SOP BPS
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-slate-400">Kota Surabaya</p>
+    <>
+      {/* 📱 Mobile Backdrop Overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 lg:hidden transition-opacity duration-300"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={cn(
+          "fixed top-0 left-0 h-screen w-64 bg-white dark:bg-slate-950 shadow-2xl lg:shadow-lg border-r border-gray-200 dark:border-slate-800 flex flex-col z-50 transition-transform duration-300 ease-in-out",
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}
+      >
+        {/* 🔷 Logo */}
+        <div className="h-20 px-6 border-b border-gray-200 dark:border-slate-800 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-900 dark:to-slate-900 flex items-center justify-between transition-colors duration-200">
+          <div className="flex items-center space-x-3">
+            <img
+              src="/bps-logo.svg"
+              onError={(e) => {
+                e.currentTarget.src = "https://upload.wikimedia.org/wikipedia/commons/thumb/2/28/Lambang_Badan_Pusat_Statistik_%28BPS%29_Indonesia.svg/1200px-Lambang_Badan_Pusat_Statistik_%28BPS%29_Indonesia.svg.png";
+              }}
+              alt="Logo BPS"
+              className="h-10 w-10 object-contain drop-shadow-md"
+            />
+            <div>
+              <h2 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent leading-tight">
+                SOP BPS
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-slate-400">Kota Surabaya</p>
+            </div>
           </div>
+          {/* ❌ Tombol Tutup pada Layar Mobile */}
+          <button
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            className="lg:hidden p-1.5 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-200 dark:hover:bg-slate-800 transition-colors"
+            aria-label="Tutup Menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
-      </div>
 
-      {/* 📋 Navigasi Menu */}
-      <nav className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-slate-700 scrollbar-track-transparent">
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          </div>
-        ) : (
-          <ul className="space-y-1.5">
-            {filteredMenuItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href, item.id);
+        {/* 📋 Navigasi Menu */}
+        <nav className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-slate-700 scrollbar-track-transparent">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <ul className="space-y-1.5">
+              {filteredMenuItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href, item.id);
 
-              return (
-                <li key={item.id}>
-                  <Link
-                    to={item.href}
-                    className={cn(
-                      "flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200",
-                      active
-                        ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/30 scale-102"
-                        : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-white"
-                    )}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <Icon
-                        className={cn(
-                          "h-5 w-5 transition-transform",
-                          active ? "text-white scale-110" : "text-slate-500 dark:text-slate-400"
-                        )}
-                      />
-                      <span className="font-medium">{item.label}</span>
-                    </div>
-                  </Link>
-                </li>
-              );
+                return (
+                  <li key={item.id}>
+                    <Link
+                      to={item.href}
+                      onClick={() => setMobileOpen(false)}
+                      className={cn(
+                        "flex items-center justify-between px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200",
+                        active
+                          ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/30 scale-102"
+                          : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-white"
+                      )}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Icon
+                          className={cn(
+                            "h-5 w-5 transition-transform",
+                            active ? "text-white scale-110" : "text-slate-500 dark:text-slate-400"
+                          )}
+                        />
+                        <span className="font-medium">{item.label}</span>
+                      </div>
+                    </Link>
+                  </li>
+                );
             })}
           </ul>
         )}
@@ -235,5 +280,6 @@ export default function Sidebar({ activeMenu }: SidebarProps) {
         </div>
       )}
     </aside>
+    </>
   );
 }

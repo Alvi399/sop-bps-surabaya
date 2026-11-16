@@ -48,6 +48,10 @@ const SOPDocument = sequelize.define('SOPDocument', {
     type: DataTypes.INTEGER,
     defaultValue: 1,
   },
+  is_manual: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
   file_url: {
     type: DataTypes.TEXT,
   },

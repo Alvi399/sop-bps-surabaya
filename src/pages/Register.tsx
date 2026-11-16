@@ -33,8 +33,10 @@ export default function Register() {
     e.preventDefault();
     setError("");
 
-    if (!email.endsWith("@bps-surabaya.go.id")) {
-      setError("Gunakan email resmi BPS (bps-surabaya.go.id)");
+    const cleanEmail = email.trim().toLowerCase();
+    const isBpsEmail = cleanEmail.endsWith("@bps-surabaya.go.id") || cleanEmail.endsWith("@bps.go.id");
+    if (!isBpsEmail) {
+      setError("Gunakan email resmi BPS (@bps-surabaya.go.id atau @bps.go.id)");
       return;
     }
 

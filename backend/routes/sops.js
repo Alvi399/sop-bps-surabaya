@@ -123,6 +123,28 @@ router.post('/', requireAuth, async (req, res) => {
       const filePath = path.join(uploadDir, filename);
       fs.writeFileSync(filePath, pdfBuffer);
       file_url = `uploads/${filename}`;
+    } else if (file_url) {
+      // Jika ada file_url (misal copy / duplicate), gandakan file fisik agar independen
+      const possibleSrcPaths = [
+        path.join(__dirname, '..', file_url),
+        path.join(__dirname, '..', 'uploads', path.basename(file_url)),
+      ];
+      const foundSrc = possibleSrcPaths.find(p => fs.existsSync(p));
+      if (foundSrc) {
+        const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 15);
+        const safeCode = (sopData.code || 'SOP').replace(/[\/\\ ]/g, '_');
+        const ext = path.extname(foundSrc) || '.pdf';
+        const newFilename = `${safeCode}_${timestamp}${ext}`;
+        const uploadDir = path.join(__dirname, '..', 'uploads');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        const destPath = path.join(uploadDir, newFilename);
+        try {
+          fs.copyFileSync(foundSrc, destPath);
+          file_url = `uploads/${newFilename}`;
+        } catch (e) {
+          console.warn('⚠️ Gagal menduplikasi file fisik:', e.message);
+        }
+      }
     }
 
     let flowchartSteps = sopData.flowchart_steps;
@@ -132,6 +154,16 @@ router.post('/', requireAuth, async (req, res) => {
     let pelaksanaColumns = sopData.pelaksana_columns;
     if (typeof pelaksanaColumns === 'string') {
       try { pelaksanaColumns = JSON.parse(pelaksanaColumns); } catch {}
+    }
+
+    // Tentukan apakah bertipe manual upload PDF atau generate form
+    let is_manual = false;
+    if (sopData.is_manual !== undefined) {
+      is_manual = Boolean(sopData.is_manual);
+    } else if (flowchartSteps && Array.isArray(flowchartSteps) && flowchartSteps.length > 0) {
+      is_manual = false;
+    } else if (sopData.file_base64 || file_url) {
+      is_manual = true;
     }
 
     const newSOP = await SOPDocument.create({
@@ -147,6 +179,7 @@ router.post('/', requireAuth, async (req, res) => {
       expiry_date: sopData.expiry_date || null,
       file_url,
       version: 1,
+      is_manual,
       created_by: req.user.id,
       approved_by: isHigherRole ? req.user.id : null,
       tanggal_pembuatan: sopData.tanggal_pembuatan || null,
@@ -226,14 +259,53 @@ router.put('/:id', requireAuth, async (req, res) => {
       'tanggal_pembuatan', 'tanggal_revisi', 'tanggal_efektif',
       'dasar_hukum', 'kualifikasi_pelaksana', 'keterkaitan', 'peralatan_perlengkapan',
       'peringatan', 'pencatatan_pendataan', 'maksud', 'tujuan',
-      'flowchart_steps', 'pelaksana_columns', 'file_url'
+      'flowchart_steps', 'pelaksana_columns', 'file_url', 'is_manual'
     ];
     const updates = {};
     allowedFields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
 
-    // Handle update file base64
-    if (req.body.file_base64) {
-      const pdfBuffer = Buffer.from(req.body.file_base64, 'base64');
+    const isCurrentlyManual = Boolean(sop.is_manual);
+
+    // Aturan 1 & 2:
+    // - Jika file upload manual kemudian update ke generate pdf maka TIDAK BISA dan harus upload pdf
+    if (isCurrentlyManual) {
+      const hasFlowchart = req.body.flowchart_steps !== undefined &&
+        req.body.flowchart_steps !== null &&
+        req.body.flowchart_steps !== 'null' &&
+        req.body.flowchart_steps !== '[]' &&
+        (Array.isArray(req.body.flowchart_steps) ? req.body.flowchart_steps.length > 0 : true);
+
+      if (req.body.is_manual === false || hasFlowchart) {
+        return res.status(400).json({
+          detail: 'Dokumen ini bertipe Upload PDF manual dan tidak dapat diubah menjadi generate PDF form/flowchart. Silakan perbarui dengan mengunggah berkas PDF manual baru.'
+        });
+      }
+      updates.is_manual = true;
+      updates.flowchart_steps = null;
+      updates.pelaksana_columns = null;
+    } else {
+      // Dokumen saat ini adalah generate PDF:
+      // - Jika diganti dengan Upload PDF manual, maka yang dipakai adalah PDF manual dan status berubah jadi manual
+      // - Jika diupdate dengan generate pdf, tetap generate pdf
+      const isSwitchingToManual = req.body.is_manual === true || (req.body.file_base64 && req.body.flowchart_steps === undefined);
+      if (isSwitchingToManual) {
+        updates.is_manual = true;
+        updates.flowchart_steps = null;
+        updates.pelaksana_columns = null;
+        console.log(`🔄 SOP ${sop.code} beralih dari Form Generate ke Upload PDF Manual.`);
+      } else {
+        updates.is_manual = false;
+      }
+    }
+
+    // Handle update file base64 (bisa dari req.body.file_base64 atau data URI di req.body.file_url)
+    let incomingBase64 = req.body.file_base64;
+    if (!incomingBase64 && typeof req.body.file_url === 'string' && req.body.file_url.startsWith('data:')) {
+      incomingBase64 = req.body.file_url.split(',')[1];
+    }
+
+    if (incomingBase64) {
+      const pdfBuffer = Buffer.from(incomingBase64, 'base64');
       const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 15);
       const safeCode = (req.body.code || sop.code || 'SOP').replace(/[\/\\ ]/g, '_');
       const filename = `${safeCode}_${timestamp}.pdf`;
@@ -251,8 +323,16 @@ router.put('/:id', requireAuth, async (req, res) => {
       try { updates.pelaksana_columns = JSON.parse(updates.pelaksana_columns); } catch {}
     }
 
-    // Ubah status approval ke pending jika ada perbaikan data utama
-    updates.approval_status = 'pending';
+    // Fungsionalitas Admin Absolute:
+    // Ketika Admin / Kepala Bagian merevisi dokumen, langsung otomatis 'approved' dan 'aktif' tanpa menunggu persetujuan!
+    if (isHigherRole) {
+      updates.approval_status = 'approved';
+      updates.status = req.body.status || 'aktif';
+      updates.approved_by = req.user.id;
+    } else {
+      updates.approval_status = 'pending';
+      updates.status = 'draft';
+    }
     updates.updated_by = req.user.id;
 
     await sop.update(updates);
@@ -270,19 +350,155 @@ router.put('/:id', requireAuth, async (req, res) => {
       sop_id: sop.id,
       title: `Update: ${sop.title}`,
       version: sop.version + 1,
-      changes_description: 'SOP diperbarui dan menunggu persetujuan',
+      changes_description: isHigherRole
+        ? 'SOP diperbarui dan langsung disetujui (Admin Absolute)'
+        : 'SOP diperbarui dan menunggu persetujuan',
       revision_type: 'update',
-      status: 'menunggu_persetujuan',
+      status: isHigherRole ? 'disetujui' : 'menunggu_persetujuan',
       revised_by: req.user.id,
+      reviewed_by: isHigherRole ? req.user.id : null,
+      approval_date: isHigherRole ? new Date() : null,
       revision_date: new Date(),
       old_data: oldData,
       new_data: newData,
     });
 
-    await logActivity(req.user.id, sop.id, 'UPDATE', `Updated SOP: ${sop.title} (Pending Approval)`);
+    const actionLabel = isHigherRole ? 'UPDATE_APPROVED' : 'UPDATE';
+    const desc = isHigherRole
+      ? `Admin ${req.user.full_name || req.user.email} merevisi & langsung menyetujui: ${sop.title}`
+      : `Updated SOP: ${sop.title} (Pending Approval)`;
+    await logActivity(req.user.id, sop.id, actionLabel, desc);
+
+    console.log(`✅ SOP updated: ${sop.code} [${updates.approval_status}] by ${req.user.email}`);
     return res.json(sop);
   } catch (err) {
     console.error('❌ Update SOP error:', err);
+    return res.status(500).json({ detail: err.message });
+  }
+});
+
+// POST /api/sops/:id/duplicate — Duplikasi SOP beserta berkas dokumen PDF fisik
+router.post('/:id/duplicate', requireAuth, async (req, res) => {
+  try {
+    const originalSop = await SOPDocument.findByPk(req.params.id);
+    if (!originalSop) return res.status(404).json({ detail: 'SOP asli tidak ditemukan' });
+
+    const newYear = req.body.new_year ? String(req.body.new_year).trim() : String(new Date().getFullYear() + 1);
+
+    // Siapkan kode unik baru
+    let newCode = req.body.code || (originalSop.code ? originalSop.code.replace(/\d{4}/g, newYear) : `${originalSop.code || 'SOP'}-${newYear}`);
+    if (newCode === originalSop.code) {
+      newCode = `${newCode}-${newYear}`;
+    }
+
+    // Pastikan kode unik di DB, jika bentrok beri penanda unik
+    let existingCode = await SOPDocument.findOne({ where: { code: newCode } });
+    let counter = 1;
+    let baseCode = newCode;
+    while (existingCode) {
+      newCode = `${baseCode}_DUP${counter > 1 ? counter : ''}`;
+      existingCode = await SOPDocument.findOne({ where: { code: newCode } });
+      counter++;
+    }
+
+    // Judul & deskripsi baru
+    const newTitle = req.body.title || (originalSop.title ? (originalSop.title.includes(newYear) ? originalSop.title : originalSop.title.replace(/\d{4}/g, newYear)) : `Duplikat ${originalSop.title}`);
+    const newDescription = originalSop.description ? originalSop.description.replace(/\d{4}/g, newYear) : '';
+
+    // Tanggal baru
+    const newEffectiveDate = originalSop.effective_date ? originalSop.effective_date.replace(/^\d{4}/, newYear) : new Date().toISOString().slice(0, 10);
+    const newExpiryDate = originalSop.expiry_date ? originalSop.expiry_date.replace(/^\d{4}/, newYear) : null;
+    const newTanggalEfektif = originalSop.tanggal_efektif ? originalSop.tanggal_efektif.replace(/^\d{4}/, newYear) : null;
+
+    // Duplikasi berkas fisik PDF (dokumen)
+    let newFileUrl = null;
+    if (originalSop.file_url) {
+      const uploadDir = path.join(__dirname, '..', 'uploads');
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+      const possibleSrcPaths = [
+        path.join(__dirname, '..', originalSop.file_url),
+        path.join(uploadDir, path.basename(originalSop.file_url)),
+        originalSop.file_url,
+      ];
+
+      let foundPath = possibleSrcPaths.find(p => fs.existsSync(p));
+      if (foundPath) {
+        const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 15);
+        const safeCode = newCode.replace(/[\/\\ ]/g, '_');
+        const ext = path.extname(foundPath) || '.pdf';
+        const newFilename = `${safeCode}_${timestamp}${ext}`;
+        const destPath = path.join(uploadDir, newFilename);
+
+        try {
+          fs.copyFileSync(foundPath, destPath);
+          newFileUrl = `uploads/${newFilename}`;
+          console.log(`📋 Dokumen fisik PDF berhasil diduplikasi: ${newFileUrl}`);
+        } catch (copyErr) {
+          console.warn('⚠️ Gagal copy file fisik:', copyErr.message);
+          newFileUrl = originalSop.file_url;
+        }
+      } else {
+        newFileUrl = originalSop.file_url;
+      }
+    }
+
+    // Buat record SOP duplikat baru dengan seluruh COP & Flowchart lengkap
+    const newSOP = await SOPDocument.create({
+      id: uuidv4(),
+      code: newCode,
+      title: newTitle,
+      description: newDescription,
+      department: originalSop.department,
+      responsible_person: originalSop.responsible_person,
+      status: 'draft',
+      approval_status: 'pending',
+      effective_date: newEffectiveDate,
+      expiry_date: newExpiryDate,
+      version: 1,
+      is_manual: Boolean(originalSop.is_manual),
+      file_url: newFileUrl,
+      created_by: req.user.id,
+      approved_by: null,
+      tanggal_pembuatan: originalSop.tanggal_pembuatan || null,
+      tanggal_revisi: null,
+      tanggal_efektif: newTanggalEfektif,
+      dasar_hukum: originalSop.dasar_hukum,
+      kualifikasi_pelaksana: originalSop.kualifikasi_pelaksana,
+      keterkaitan: originalSop.keterkaitan,
+      peralatan_perlengkapan: originalSop.peralatan_perlengkapan,
+      peringatan: originalSop.peringatan,
+      pencatatan_pendataan: originalSop.pencatatan_pendataan,
+      maksud: originalSop.maksud,
+      tujuan: originalSop.tujuan,
+      flowchart_steps: originalSop.flowchart_steps,
+      pelaksana_columns: originalSop.pelaksana_columns,
+    });
+
+    // Buat revision riwayat duplikasi
+    await SOPRevision.create({
+      id: uuidv4(),
+      sop_id: newSOP.id,
+      title: `Duplikasi dari SOP: ${originalSop.code}`,
+      version: 1,
+      changes_description: `Diduplikasi dari ${originalSop.code} (${originalSop.title}) untuk tahun ${newYear}`,
+      revision_type: 'duplicate',
+      status: 'menunggu_persetujuan',
+      revised_by: req.user.id,
+      revision_date: new Date(),
+      new_data: { code: newSOP.code, title: newSOP.title, department: newSOP.department },
+    });
+
+    await logActivity(req.user.id, newSOP.id, 'DUPLICATE', `Duplicated SOP: ${originalSop.code} → ${newSOP.code}`);
+    console.log(`✅ SOP duplicated successfully: ${originalSop.code} → ${newSOP.code}`);
+
+    return res.status(201).json({
+      message: 'SOP dan dokumen PDF berhasil diduplikasi',
+      sop: newSOP,
+      ...newSOP.toJSON(),
+    });
+  } catch (err) {
+    console.error('❌ Duplicate SOP error:', err);
     return res.status(500).json({ detail: err.message });
   }
 });

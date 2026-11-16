@@ -7,43 +7,68 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
-// POST /api/auth/register — HANYA Admin yang bisa membuat akun baru
-router.post('/register', requireAuth, async (req, res) => {
+// POST /api/auth/register — Pendaftaran akun pengguna baru
+router.post('/register', async (req, res) => {
   try {
-    // Hanya admin yang diizinkan mendaftarkan user baru
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ detail: 'Hanya Administrator yang dapat mendaftarkan pengguna baru.' });
-    }
-
     const { email, password, full_name, department, phone, role } = req.body;
 
     if (!email || !password || !full_name || !department) {
       return res.status(400).json({ detail: 'Email, password, nama lengkap, dan departemen wajib diisi' });
     }
 
-    const existing = await User.findOne({ where: { email } });
-    if (existing) {
-      return res.status(400).json({ detail: 'Email sudah terdaftar di sistem' });
+    const cleanEmail = String(email).trim().toLowerCase();
+
+    // Validasi domain email BPS resmi
+    const isBpsEmail = cleanEmail.endsWith('@bps-surabaya.go.id') || cleanEmail.endsWith('@bps.go.id');
+    if (!isBpsEmail) {
+      return res.status(400).json({ detail: 'Gunakan email resmi BPS (@bps-surabaya.go.id atau @bps.go.id)' });
     }
 
-    const salt = await bcrypt.genSalt(12);
+    if (password.length < 6) {
+      return res.status(400).json({ detail: 'Password minimal 6 karakter' });
+    }
+
+    const existing = await User.findOne({ where: { email: cleanEmail } });
+    if (existing) {
+      return res.status(400).json({ detail: 'Email sudah terdaftar di sistem. Silakan login atau gunakan email lain.' });
+    }
+
+    // Role assignment: Default 'staf'. Hanya admin terautentikasi yang bisa assign role lain
+    let assignedRole = 'staf';
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const payload = jwt.verify(token, process.env.JWT_SECRET || 'secret-key-sop-bps-surabaya');
+        const caller = await User.findByPk(payload.id);
+        if (caller && caller.role === 'admin' && role) {
+          assignedRole = role;
+        }
+      } catch {}
+    }
+
+    const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
 
     const user = await User.create({
       id: uuidv4(),
-      email,
+      email: cleanEmail,
       password_hash,
-      full_name,
-      department,
-      phone: phone || null,
-      role: role || 'staf',
+      full_name: full_name.trim(),
+      department: department.trim(),
+      phone: phone ? String(phone).trim() : null,
+      role: assignedRole,
       is_active: true,
       join_date: new Date(),
     });
 
     const { password_hash: _, ...userResponse } = user.toJSON();
-    console.log(`✅ Admin ${req.user.email} mendaftarkan user baru: ${email} (role: ${role || 'staf'})`);
-    return res.status(201).json(userResponse);
+    console.log(`✅ Registrasi user baru berhasil: ${cleanEmail} (role: ${assignedRole})`);
+    return res.status(201).json({
+      message: 'Pendaftaran berhasil. Silakan login.',
+      user: userResponse,
+      ...userResponse
+    });
   } catch (err) {
     console.error('❌ Register error:', err);
     return res.status(500).json({ detail: err.message });

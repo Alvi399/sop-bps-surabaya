@@ -37,6 +37,7 @@
     effectiveDate: string; // Tanggal berlaku
     expiryDate: string; // Tanggal kedaluwarsa
     version: number; // Versi SOP
+    isManual?: boolean; // True jika upload manual, false jika generate form
     fileUrl: string; // Path / URL file PDF SOP (bisa lokal)
     createdBy: string; // ID user pembuat
     createdAt: string; // Tanggal dibuat

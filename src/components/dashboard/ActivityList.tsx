@@ -14,7 +14,7 @@ import {
 import axios from "axios";
 import { AuthService } from "@/lib/auth";
 
-const API_URL = "/api";
+import { API_URL } from "@/lib/api";
 
 interface ActivityListProps {
   sopDocuments: SOPDocument[];

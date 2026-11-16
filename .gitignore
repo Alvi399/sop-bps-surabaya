@@ -1,5 +1,13 @@
 node_modules
-node_modules
-node_modules
-node_modules
-node_modules
+dist
+logs
+*.log
+.env.local
+.env.*.local
+backend/.env
+backend/.env.*
+backend/uploads/*.pdf
+!backend/uploads/.gitkeep
+backend_old_root/
+bug/
+*.pdf

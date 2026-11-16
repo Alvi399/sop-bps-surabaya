@@ -98,20 +98,39 @@ router.post('/', requireAuth, async (req, res) => {
     const sop = await SOPDocument.findByPk(sop_id);
     if (!sop) return res.status(404).json({ detail: 'SOP tidak ditemukan' });
 
+    const isAdminAbsolute = ['admin', 'kepala_bagian'].includes(req.user.role);
+    const revisionStatus = isAdminAbsolute ? 'disetujui' : (status || 'menunggu_persetujuan');
+
     const revision = await SOPRevision.create({
       id: uuidv4(),
       sop_id,
       title: title || `Revisi SOP: ${sop.title}`,
       version: version || (sop.version + 1),
-      changes_description: changes_description || 'Mengajukan revisi SOP',
-      status: status || 'menunggu_persetujuan',
+      changes_description: changes_description || (isAdminAbsolute ? 'Revisi dibuat dan langsung disetujui (Admin Absolute)' : 'Mengajukan revisi SOP'),
+      status: revisionStatus,
       revised_by: req.user.id,
+      reviewed_by: isAdminAbsolute ? req.user.id : null,
+      approval_date: isAdminAbsolute ? new Date() : null,
       revision_date: new Date(),
       old_data: old_data || null,
       new_data: new_data || null,
     });
 
-    await logActivity(req.user.id, sop_id, 'CREATE_REVISION', `Created revision v${revision.version} for SOP: ${sop.title}`);
+    if (isAdminAbsolute) {
+      await sop.update({
+        version: revision.version,
+        status: 'aktif',
+        approval_status: 'approved',
+        approved_by: req.user.id,
+        updated_by: req.user.id,
+      });
+    }
+
+    const actionType = isAdminAbsolute ? 'CREATE_APPROVED_REVISION' : 'CREATE_REVISION';
+    const actionDesc = isAdminAbsolute
+      ? `Admin ${req.user.full_name || req.user.email} merevisi & langsung menyetujui v${revision.version}: ${sop.title}`
+      : `Created revision v${revision.version} for SOP: ${sop.title}`;
+    await logActivity(req.user.id, sop_id, actionType, actionDesc);
     return res.status(201).json(revision);
   } catch (err) {
     return res.status(500).json({ detail: err.message });

@@ -9,6 +9,7 @@ const fs = require('fs');
 const { sequelize } = require('./models');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 8000;
 
 // ===================================
@@ -44,6 +45,7 @@ app.use('/api/sops',      sopRoutes);
 app.use('/api/revisions', revisionRoutes);
 app.use('/api/users',     userRoutes);
 app.use('/api/activities', activityRoutes);
+app.use('/api',             pdfRoutes);                  // /api/edit-pdf/ dan /api/pdfs/:filename
 app.use('/',              pdfRoutes);                  // /edit-pdf/ dan /pdfs/:filename
 
 // ===================================
@@ -102,4 +104,14 @@ async function startServer() {
   }
 }
 
-startServer();
+// In Vercel serverless environment, export app without blocking listen
+if (process.env.VERCEL === '1') {
+  // Lazy DB authenticate on serverless invocations
+  sequelize.authenticate()
+    .then(() => console.log('✅ MySQL connected on Vercel Serverless'))
+    .catch((err) => console.warn('⚠️ MySQL connection warning on Vercel Serverless:', err.message));
+} else if (require.main === module) {
+  startServer();
+}
+
+module.exports = app;

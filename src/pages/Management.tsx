@@ -55,10 +55,11 @@ import {
 } from "lucide-react";
 import { RevisionSection } from "./Revision";
 import { useRealtimeSubscription, notifyRealtimeUpdate } from "@/lib/realtime";
+import { DEPARTMENTS } from "@/lib/departments";
 import { toast } from "sonner";
 import axios from "axios";
 
-const API_URL = "/api";
+import { API_URL } from "@/lib/api";
 
 // Format tanggal sederhana
 const formatDate = (dateString: string) => {
@@ -146,6 +147,7 @@ export default function Management() {
         effectiveDate: item.effective_date,
         expiryDate: item.expiry_date,
         version: item.version,
+        isManual: item.is_manual === 1 || item.is_manual === true,
         fileUrl: item.file_url,
         createdBy: item.created_by,
         approvedBy: item.approved_by,
@@ -441,26 +443,18 @@ export default function Management() {
         return;
       }
 
-      const duplicatedData = {
-        code: sop.code ? sop.code.replace(/\d{4}/g, newYear) : sop.code,
-        title: sop.title ? sop.title.replace(/\d{4}/g, newYear) : sop.title,
-        description: sop.description ? sop.description.replace(/\d{4}/g, newYear) : sop.description,
-        department: sop.department,
-        responsible_person: sop.responsiblePerson,
-        status: "draft",
-        effective_date: sop.effectiveDate ? sop.effectiveDate.replace(/^\d{4}/, newYear) : sop.effectiveDate,
-        expiry_date: sop.expiryDate ? sop.expiryDate.replace(/^\d{4}/, newYear) : sop.expiryDate,
-        file_url: sop.fileUrl,
-      };
+      toast.info("Menduplikasi SOP dan berkas dokumen PDF...");
 
-      await axios.post(`${API_URL}/sops`, duplicatedData, {
+      await axios.post(`${API_URL}/sops/${sop.id}/duplicate`, {
+        new_year: newYear,
+      }, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       });
 
-      toast.success(`SOP berhasil diduplikasi sebagai draft untuk tahun ${newYear}`);
+      toast.success(`✅ SOP & dokumen PDF berhasil diduplikasi untuk tahun ${newYear}!`);
       notifyRealtimeUpdate("sop_duplicated");
       fetchSOPs(true);
     } catch (error: any) {
@@ -470,10 +464,8 @@ export default function Management() {
         toast.error("Session expired. Please login again.");
         AuthService.logout();
         window.location.href = "/login";
-      } else if (error.response?.status === 400) {
-        toast.error("SOP code already exists");
       } else {
-        toast.error("Failed to duplicate SOP");
+        toast.error(error.response?.data?.detail || "Gagal menduplikasi SOP");
       }
     }
   };
@@ -538,7 +530,7 @@ export default function Management() {
   };
 
   const departments = Array.from(
-    new Set(sopDocuments.map((doc) => doc.department).filter(Boolean))
+    new Set([...DEPARTMENTS, ...sopDocuments.map((doc) => doc.department).filter(Boolean)])
   );
 
   if (loading) {
@@ -613,8 +605,8 @@ export default function Management() {
               </div>
 
               {/* Table */}
-              <div className="rounded-xl border border-gray-200 overflow-hidden bg-white/50 backdrop-blur-sm">
-                <Table>
+              <div className="rounded-xl border border-gray-200 overflow-x-auto bg-white/50 backdrop-blur-sm">
+                <Table className="min-w-[850px]">
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-blue-50 to-purple-50">
                       <TableHead>Kode SOP</TableHead>
@@ -648,7 +640,18 @@ export default function Management() {
                         >
                           <TableCell className="font-mono text-sm">{doc.code}</TableCell>
                           <TableCell>
-                            <p className="font-medium">{doc.title}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium">{doc.title}</p>
+                              {doc.isManual ? (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-700 border border-purple-200" title="Dokumen ini diunggah secara manual">
+                                  Manual PDF
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200" title="Dokumen ini dibuat melalui Form & Flowchart SOP">
+                                  Form SOP
+                                </span>
+                              )}
+                            </div>
                             <p className="text-sm text-gray-500 truncate max-w-xs">
                               {doc.description}
                             </p>
@@ -777,14 +780,12 @@ export default function Management() {
         <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.5))]" />
       </div>
 
-      <aside className="fixed left-0 top-0 h-full w-64 z-30">
-        <Sidebar activeMenu="management" />
-      </aside>
+      <Sidebar activeMenu="management" />
 
-      <div className="ml-64 flex-1 min-w-0 flex flex-col relative z-10">
+      <div className="ml-0 lg:ml-64 flex-1 min-w-0 flex flex-col relative z-10">
         <Header />
 
-        <main className="flex-1 overflow-y-auto scroll-smooth p-6">
+        <main className="flex-1 overflow-y-auto scroll-smooth p-4 md:p-6">
           <div className="mb-6">
             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
               {isAuthorizedForRevision ? "Manajemen SOP & Riwayat Revisi" : "Manajemen SOP"}

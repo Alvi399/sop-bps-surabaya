@@ -4,92 +4,69 @@ Panduan ini khusus untuk paket **Hostinger Shared Hosting biasa (Single / Premiu
 
 ---
 
-## 📌 Pilihan Solusi Terbaik & Paling Mudah
+## 📌 Alternatif Platform Hosting Backend Node.js (Pilihan Selain Render.com)
 
-### 💡 SOLUSI A: Metode Hybrid (Paling Direkomendasikan & 100% Gratis)
-- **Frontend React (`dist/`)**: Di-upload ke **Hostinger `public_html`** (Domain utama Anda aktif di sini).
-- **Backend Node.js Express**: Di-deploy **Gratis di Render.com** (atau Railway.app).
-- **Database MySQL**: Menggunakan **MySQL Database Hostinger** bawaan.
+Jika Anda tidak ingin menggunakan Render.com, berikut adalah alternatif platform cloud **Gratis & Terbaik** untuk menaruh Backend Node.js Express:
 
-> **Keuntungan Solusi A**:
-> 1. Tetap bisa pakai paket Hostinger murah tanpa upgrade.
-> 2. Domain & Tampilan Web tetap 100% tampil di alamat web Hostinger Anda (misal `sop-bps-surabaya.com`).
-> 3. Backend Node.js & PDF Generator tetap berjalan cepat dan stabil.
-
----
-
-## 🚀 Langkah-Langkah Solusi A (Hostinger Frontend + Render Backend)
-
-### LAKUKAN HANYA SEKALI:
-
-#### 1. Upload Backend ke Render.com (Gratis)
-1. Buat akun gratis di [Render.com](https://render.com).
-2. Klik **New +** ➔ Pilih **Web Service**.
-3. Hubungkan ke Repository GitHub proyek ini (atau upload folder `backend`).
-4. Isi data berikut:
-   - **Name**: `sop-bps-backend`
-   - **Environment**: `Node`
-   - **Build Command**: `npm install`
-   - **Start Command**: `node backend/server.js`
-5. Tambahkan **Environment Variables** di Render:
-   - `PORT`: `8000`
-   - `DB_HOST`: IP Database Hostinger (atau `sqlXXX.hostinger.com`)
-   - `DB_USER`: `u123456789_user`
-   - `DB_PASS`: `password_db_anda`
-   - `DB_NAME`: `u123456789_dbname`
-   - `JWT_SECRET`: `super-secret-key-sop-bps`
-6. Klik **Create Web Service**. Anda akan mendapatkan URL Backend (contoh: `https://sop-bps-backend.onrender.com`).
+| Platform | Biaya | Kelebihan | Kemudahan |
+|---|---|---|---|
+| **1. Vercel** | 🟢 100% Gratis | Sangat Cepat, Serverless, Uptime 99.9% | ⭐⭐⭐⭐⭐ (Sangat Mudah) |
+| **2. Koyeb** | 🟢 Free Tier Selamanya | Tanpa Cold-Start (Selalu Aktif), Cepat | ⭐⭐⭐⭐⭐ (Sangat Mudah) |
+| **3. Railway.app** | 🟢 Gratis Credit / Bulan | 1-Click Deploy dari GitHub | ⭐⭐⭐⭐ (Mudah) |
+| **4. Fly.io** | 🟢 Free Tier | Performa tinggi | ⭐⭐⭐ (Perlu CLI) |
+| **5. Upgrade Hostinger VPS** | 🟡 ~$4/bulan | 100% Serba Hostinger (Node.js + MySQL + Nginx) | ⭐⭐⭐ (Semua dalam 1 tempat) |
 
 ---
 
-#### 2. Buat Database & Izinkan Remote MySQL di Hostinger
-1. Login ke **hPanel Hostinger** ➔ **MySQL Databases**.
-2. Buat database & user MySQL baru.
-3. Masuk ke menu **Remote MySQL** di Hostinger:
-   - Masukkan IP `%` (Artinya mengizinkan koneksi dari Render/Backend).
-   - Klik **Create**.
+## 🚀 Panduan Detail Pilihan Alternatif
+
+### 🔷 Pilihan 1: Vercel (Paling Populer & Cepat)
+1. Buat akun gratis di [Vercel.com](https://vercel.com).
+2. Install Vercel CLI atau hubungkan akun GitHub Anda.
+3. Import repository / folder `backend`.
+4. Tambahkan Environment Variables di Dashboard Vercel:
+   - `DB_HOST`: Host/IP Database Hostinger
+   - `DB_USER`: Username Database Hostinger
+   - `DB_PASS`: Password Database Hostinger
+   - `DB_NAME`: Nama Database Hostinger
+   - `JWT_SECRET`: Secret Key JWT
+5. Klik **Deploy**. Vercel akan langsung memberikan URL API backend (misal: `https://sop-bps-backend.vercel.app/api`).
 
 ---
 
-#### 3. Hubungkan Frontend ke URL Backend Render
-1. Di komputer Anda, buka file `src/lib/api.ts` (atau `vite.config.ts`).
-2. Ganti URL API ke URL Render Anda:
-   ```ts
-   const API_URL = "https://sop-bps-backend.onrender.com/api";
-   ```
-3. Build Frontend React:
-   ```bash
-   npm run build
-   ```
+### 🔷 Pilihan 2: Koyeb (Tanpa Delay / Cold Start)
+1. Buat akun gratis di [Koyeb.com](https://koyeb.com).
+2. Klik **Create App** ➔ Pilih **GitHub** (atau Docker).
+3. Hubungkan repository backend Node.js Anda.
+4. Set Port: `8000`.
+5. Masukkan Environment Variables MySQL Hostinger.
+6. Klik **Deploy**. URL Backend siap digunakan (misal: `https://sop-bps-backend.koyeb.app/api`).
 
 ---
 
-#### 4. Upload Hasil Build (`dist/`) ke Hostinger `public_html`
-1. Buka **File Manager** di **hPanel Hostinger**.
-2. Masuk ke folder `public_html`.
-3. Upload seluruh file dari dalam folder **`dist/`** lokal Anda (`index.html`, folder `assets/`, dll).
-4. Buat file **`.htaccess`** di dalam `public_html` Hostinger agar routing SPA (Single Page Application) React berjalan lancar tanpa error 404:
-
-```apache
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteBase /
-  RewriteRule ^index\.html$ - [L]
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule . /index.html [L]
-</IfModule>
-```
+### 🔷 Pilihan 3: Railway.app (Simpel & Responsif)
+1. Buat akun gratis di [Railway.app](https://railway.app).
+2. Klik **New Project** ➔ **Deploy from GitHub repo**.
+3. Tambahkan Environment Variables Database Hostinger di tab **Variables**.
+4. Di tab **Settings** ➔ **Networking**, klik **Generate Domain**.
+5. Gunakan URL yang dihasilkan (misal: `https://sop-bps-backend.up.railway.app/api`).
 
 ---
 
-## 🎯 SELESAI!
-Kini website E-SOPRA Anda sudah **Online 100%** di domain Hostinger Anda dengan database MySQL yang tersimpan aman di Hostinger!
+## 🏬 Pilihan 4: Upgrade ke Hostinger Node.js / VPS (100% Pakai Hostinger)
+
+Jika Anda ingin **semuanya 100% berada di Hostinger** tanpa bantuan pihak ketiga (Render/Vercel/Koyeb):
+
+1. Masuk ke **hPanel Hostinger**.
+2. Upgrade paket dari Web Hosting biasa ke **Hostinger KVM VPS** atau **Business Web Hosting dengan Node.js**.
+3. Di paket VPS / Node.js Hostinger, Anda bisa memasang Node.js Express & MySQL secara terintegrasi 100% di satu tempat.
 
 ---
 
-## ❓ FAQ & Troubleshooting
-- **Apakah .htaccess wajib?**  
-  *Ya! File `.htaccess` wajib dibuat di Hostinger agar saat halaman direfresh (misal di `/management` atau `/edit/123`), web tidak menampilkan `404 Not Found`.*
-- **Bagaimana cara mengubah alamat backend jika ganti domain?**  
-  *Cukup ganti variabel `VITE_API_URL` saat `npm run build` dan upload ulang folder `dist/` ke Hostinger.*
+## 📌 Kesimpulan Langkah Frontend di Hostinger
+
+Manapun platform backend yang Anda pilih (Vercel, Koyeb, Railway, Render, atau Hostinger VPS):
+
+1. **Frontend React (`dist/`)** tetap di-upload ke Hostinger `public_html`.
+2. URL Backend di file `src/lib/api.ts` (atau `vite.config.ts`) cukup diarahkan ke URL Backend yang Anda pilih.
+3. Website Anda aktif 100% di domain Hostinger!

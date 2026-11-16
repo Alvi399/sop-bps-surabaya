@@ -20,6 +20,7 @@ import {
   User as UserIcon,
   Sun,
   Moon,
+  Menu,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -28,7 +29,7 @@ import { useRealtimeSubscription } from "@/lib/realtime";
 import axios from "axios";
 import { toast } from "sonner";
 
-const API_URL = "/api";
+import { API_URL } from "@/lib/api";
 
 interface ActivityLog {
   id: string;
@@ -196,23 +197,37 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-40 h-20 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md shadow-sm border-b border-gray-200 dark:border-slate-800 px-6 flex items-center transition-colors duration-200">
-      <div className="flex items-center justify-between w-full">
-        {/* 🔍 Search Bar */}
-        <form onSubmit={handleSearch} className="flex-1 max-w-md">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-400 h-4 w-4" />
-            <Input
-              placeholder="Cari SOP, dokumen, atau aktivitas..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-900 transition-colors"
-            />
-          </div>
-        </form>
+    <header className="sticky top-0 z-20 h-16 md:h-20 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md shadow-sm border-b border-gray-200 dark:border-slate-800 px-3 md:px-6 flex items-center transition-colors duration-200">
+      <div className="flex items-center justify-between w-full gap-2 md:gap-4">
+        {/* Hamburger Mobile + 🔍 Search Bar */}
+        <div className="flex items-center gap-2 flex-1 max-w-md min-w-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => window.dispatchEvent(new CustomEvent('toggle-mobile-sidebar'))}
+            className="lg:hidden h-9 w-9 p-0 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-200 shrink-0"
+            aria-label="Buka Menu Navigasi"
+            title="Buka Menu"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+
+          <form onSubmit={handleSearch} className="flex-1 min-w-0">
+            <div className="relative">
+              <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-400 h-4 w-4" />
+              <Input
+                placeholder="Cari SOP, dokumen..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 sm:pl-9 h-9 sm:h-10 text-xs sm:text-sm bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-900 transition-colors w-full"
+              />
+            </div>
+          </form>
+        </div>
 
         {/* 🔔 Notifications, Theme & User Menu */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
           {/* 🌓 Dark Mode Toggle */}
           <Button
             variant="ghost"

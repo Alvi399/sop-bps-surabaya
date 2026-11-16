@@ -2,11 +2,11 @@ const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
 const sequelize = new Sequelize(
-  process.env.DB_NAME || 'sop_bps',
-  process.env.DB_USER || 'root',
-  process.env.DB_PASSWORD || '',
+  process.env.DB_NAME || 'u301139053_sop_bps',
+  process.env.DB_USER || 'u301139053_sop_bps_user',
+  process.env.DB_PASS || process.env.DB_PASSWORD || '\\Sukasuka2',
   {
-    host: process.env.DB_HOST || 'localhost',
+    host: process.env.DB_HOST || '153.92.15.58',
     port: parseInt(process.env.DB_PORT) || 3306,
     dialect: 'mysql',
     dialectOptions: {
