@@ -1028,13 +1028,13 @@ export default function EditSOP() {
         department: (formData.department && formData.department.trim()) || currentUser?.department || "Umum",
         responsible_person: (formData.responsiblePerson && formData.responsiblePerson.trim()) || currentUser?.fullName || (currentUser as any)?.full_name || "Penanggung Jawab",
         status: isDraft ? "draft" : "aktif",
-        effective_date: formData.effectiveDate || new Date().toISOString().split('T')[0],
+        effective_date: formData.effectiveDate || formData.tanggalEfektif || new Date().toISOString().split('T')[0],
         expiry_date: formData.expiryDate || null,
         is_manual: false,
         file_base64: base64Pdf,
         tanggal_pembuatan: formData.tanggalPembuatan || null,
         tanggal_revisi: formData.tanggalRevisi || null,
-        tanggal_efektif: formData.tanggalEfektif || null,
+        tanggal_efektif: formData.tanggalEfektif || formData.effectiveDate || null,
         dasarHukum: formData.dasarHukum || null,
         kualifikasiPelaksana: formData.kualifikasiPelaksana || null,
         keterkaitan: formData.keterkaitan || null,
@@ -1133,7 +1133,11 @@ export default function EditSOP() {
 
     } catch (error: any) {
       console.error("❌ Error updating SOP:", error);
-      toast.error(`Gagal menyimpan SOP: ${error.message || error}`);
+      let errMsg = error.message || String(error);
+      if (errMsg === "Validation error" || errMsg.toLowerCase().includes("validation error")) {
+        errMsg = "Validasi data gagal: Kode SOP sudah terdaftar atau terdapat kolom yang belum sesuai. Pastikan Kode SOP unik.";
+      }
+      toast.error(`Gagal menyimpan SOP: ${errMsg}`);
     } finally {
       setIsSaving(false);
     }

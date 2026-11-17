@@ -357,7 +357,7 @@ export default function CreateSOP() {
           setFormData(prev => ({
             ...prev,
             department: user.department || prev.department,
-            penanggungJawab: user.fullName || user.full_name || prev.penanggungJawab
+            responsiblePerson: user.fullName || (user as any).full_name || prev.responsiblePerson
           }));
         }
       }
@@ -734,6 +734,27 @@ export default function CreateSOP() {
         return;
       }
 
+      // Pre-check duplikasi Kode SOP jika diinput manual
+      const checkCode = (uploadFormData.code && uploadFormData.code.trim());
+      if (checkCode) {
+        try {
+          const checkRes = await fetch(`${API_URL}/sops`, {
+            headers: { "Authorization": `Bearer ${token}` }
+          });
+          if (checkRes.ok) {
+            const allSops: any[] = await checkRes.json();
+            const isDup = allSops.some(s => s.code?.toLowerCase().trim() === checkCode.toLowerCase());
+            if (isDup) {
+              toast.error(`Kode SOP "${checkCode}" sudah digunakan. Silakan gunakan Kode SOP yang berbeda.`);
+              setIsSaving(false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn("Pre-check code notice:", e);
+        }
+      }
+
       // Convert PDF to base64
       const base64Pdf = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -822,7 +843,11 @@ export default function CreateSOP() {
 
     } catch (error: any) {
       console.error("❌ Error uploading SOP:", error);
-      toast.error(`Gagal upload SOP: ${error.message || error}`);
+      let errMsg = error.message || String(error);
+      if (errMsg === "Validation error" || errMsg.toLowerCase().includes("validation error")) {
+        errMsg = "Validasi data gagal: Kode SOP sudah terdaftar atau terdapat kolom yang belum sesuai. Pastikan Kode SOP unik.";
+      }
+      toast.error(`Gagal upload SOP: ${errMsg}`);
     } finally {
       setIsSaving(false);
     }
@@ -845,6 +870,27 @@ export default function CreateSOP() {
         toast.error("Judul SOP dan Tim harus diisi!");
         setIsSaving(false);
         return;
+      }
+
+      // Pre-check duplikasi Kode SOP jika diinput manual oleh user
+      const checkCode = (formData.code && formData.code.trim());
+      if (checkCode) {
+        try {
+          const checkRes = await fetch(`${API_URL}/sops`, {
+            headers: { "Authorization": `Bearer ${token}` }
+          });
+          if (checkRes.ok) {
+            const allSops: any[] = await checkRes.json();
+            const isDup = allSops.some(s => s.code?.toLowerCase().trim() === checkCode.toLowerCase());
+            if (isDup) {
+              toast.error(`Kode SOP "${checkCode}" sudah digunakan. Silakan gunakan Kode SOP yang unik.`);
+              setIsSaving(false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn("Pre-check form code notice:", e);
+        }
       }
 
       console.log("🔄 Generating PDF...");
@@ -894,14 +940,14 @@ export default function CreateSOP() {
         department: (formData.department && formData.department.trim()) || currentUser?.department || "Umum",
         responsible_person: (formData.responsiblePerson && formData.responsiblePerson.trim()) || currentUser?.fullName || (currentUser as any)?.full_name || "Penanggung Jawab",
         status: isDraft ? "draft" : "aktif",
-        effective_date: formData.effectiveDate || new Date().toISOString().split('T')[0],
+        effective_date: formData.effectiveDate || formData.tanggalEfektif || new Date().toISOString().split('T')[0],
         expiry_date: formData.expiryDate || null,
         file_base64: base64Pdf, // ✅ Kirim sebagai base64
         is_manual: false,
         // Data tambahan untuk COP
         tanggal_pembuatan: formData.tanggalPembuatan || null,
         tanggal_revisi: formData.tanggalRevisi || null,
-        tanggal_efektif: formData.tanggalEfektif || null,
+        tanggal_efektif: formData.tanggalEfektif || formData.effectiveDate || null,
         dasar_hukum: formData.dasarHukum || null,
         kualifikasi_pelaksana: formData.kualifikasiPelaksana || null,
         keterkaitan: formData.keterkaitan || null,
@@ -1012,7 +1058,11 @@ export default function CreateSOP() {
 
     } catch (error: any) {
       console.error("❌ Error saving SOP:", error);
-      toast.error(`Gagal menyimpan SOP: ${error.message || error}`);
+      let errMsg = error.message || String(error);
+      if (errMsg === "Validation error" || errMsg.toLowerCase().includes("validation error")) {
+        errMsg = "Validasi data gagal: Kode SOP sudah terdaftar atau terdapat kolom yang belum sesuai. Pastikan Kode SOP unik.";
+      }
+      toast.error(`Gagal menyimpan SOP: ${errMsg}`);
     } finally {
       setIsSaving(false);
     }
