@@ -747,11 +747,11 @@ export default function CreateSOP() {
       });
 
       const sopData = {
-        code: uploadFormData.code || `SOP-${Date.now()}`,
-        title: uploadFormData.title,
-        description: uploadFormData.description || "-",
-        department: uploadFormData.department,
-        responsible_person: uploadFormData.responsiblePerson || "-",
+        code: (uploadFormData.code && uploadFormData.code.trim()) || `SOP-${Date.now()}`,
+        title: uploadFormData.title.trim(),
+        description: (uploadFormData.description && uploadFormData.description.trim()) || "-",
+        department: (uploadFormData.department && uploadFormData.department.trim()) || currentUser?.department || "Umum",
+        responsible_person: (uploadFormData.responsiblePerson && uploadFormData.responsiblePerson.trim()) || currentUser?.fullName || (currentUser as any)?.full_name || "Penanggung Jawab",
         status: isDraft ? "draft" : "aktif",
         effective_date: uploadFormData.effectiveDate || new Date().toISOString().split('T')[0],
         expiry_date: uploadFormData.expiryDate || null,
@@ -789,7 +789,11 @@ export default function CreateSOP() {
           throw new Error("Kode SOP sudah ada, gunakan kode lain!");
         }
         
-        throw new Error(errorData.detail || "Failed to create SOP");
+        let errMsg = errorData.detail || "Failed to create SOP";
+        if (errMsg === "Validation error" || errMsg.toLowerCase().includes("validation error")) {
+          errMsg = "Validasi data gagal. Pastikan Kode SOP unik dan seluruh kolom wajib terisi.";
+        }
+        throw new Error(errMsg);
       }
 
       clearAutoSaveDraft();
@@ -884,11 +888,11 @@ export default function CreateSOP() {
 
       // 5. Prepare JSON data (BUKAN FormData)
       const sopData = {
-        code: formData.code || `SOP-${Date.now()}`,
-        title: formData.title,
-        description: formData.description || "-",
-        department: formData.department,
-        responsible_person: formData.responsiblePerson || "-",
+        code: (formData.code && formData.code.trim()) || `SOP-${Date.now()}`,
+        title: formData.title.trim(),
+        description: (formData.description && formData.description.trim()) || "-",
+        department: (formData.department && formData.department.trim()) || currentUser?.department || "Umum",
+        responsible_person: (formData.responsiblePerson && formData.responsiblePerson.trim()) || currentUser?.fullName || (currentUser as any)?.full_name || "Penanggung Jawab",
         status: isDraft ? "draft" : "aktif",
         effective_date: formData.effectiveDate || new Date().toISOString().split('T')[0],
         expiry_date: formData.expiryDate || null,
@@ -947,7 +951,7 @@ export default function CreateSOP() {
         if (text && text.trim().startsWith("<")) {
           throw new Error(`Server returned HTML instead of JSON (${response.status} ${response.statusText}). Pastikan backend server berjalan di port 8000.`);
         }
-        const errorDetail = result?.detail || `Failed to create SOP (${response.status})`;
+        let errorDetail = result?.detail || `Failed to create SOP (${response.status})`;
         if (response.status === 401 || errorDetail.includes("Could not validate credentials")) {
           AuthService.logout();
           toast.error("Sesi login Anda telah berakhir. Silakan login kembali.");
@@ -956,6 +960,9 @@ export default function CreateSOP() {
         }
         if (errorDetail.includes("already exists") || errorDetail.includes("Duplicate entry")) {
           throw new Error("Kode SOP sudah ada, gunakan kode lain!");
+        }
+        if (errorDetail === "Validation error" || errorDetail.toLowerCase().includes("validation error")) {
+          errorDetail = "Validasi data gagal. Pastikan Kode SOP unik dan seluruh kolom wajib terisi.";
         }
         throw new Error(errorDetail);
       }

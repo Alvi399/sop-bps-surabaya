@@ -17,6 +17,68 @@ async function logActivity(user_id, sop_id, action, description) {
   }
 }
 
+// Helper: sanitasi tanggal untuk kolom DATEONLY (format YYYY-MM-DD atau null)
+function sanitizeDate(val) {
+  if (!val) return null;
+  if (typeof val !== 'string') {
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      return val.toISOString().slice(0, 10);
+    }
+    return null;
+  }
+  const trimmed = val.trim();
+  if (!trimmed || trimmed === 'null' || trimmed === 'undefined' || trimmed === '-' || trimmed === 'Invalid Date') {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const d = new Date(trimmed);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+// Helper: mengekstrak pesan error validasi/database agar ramah pengguna
+function getSequelizeErrorMessage(err) {
+  if (!err) return 'Terjadi kesalahan pada server saat memproses data SOP.';
+  
+  // Unique Constraint / ER_DUP_ENTRY
+  if (err.name === 'SequelizeUniqueConstraintError' || err.parent?.code === 'ER_DUP_ENTRY') {
+    const field = err.errors?.[0]?.path || 'kode';
+    const value = err.errors?.[0]?.value || '';
+    if (field === 'code' || (err.parent?.sqlMessage && err.parent.sqlMessage.includes('code'))) {
+      return value
+        ? `Kode SOP "${value}" sudah terdaftar dalam sistem. Silakan gunakan Kode SOP yang berbeda.`
+        : 'Kode SOP sudah terdaftar dalam sistem. Silakan gunakan Kode SOP yang unik.';
+    }
+    return `Nilai unik "${value}" pada kolom ${field} sudah digunakan.`;
+  }
+
+  // Sequelize Validation Error
+  if (err.name === 'SequelizeValidationError' && Array.isArray(err.errors) && err.errors.length > 0) {
+    const messages = err.errors.map(e => {
+      if (e.path === 'code') return 'Kode SOP wajib diisi dan harus unik';
+      if (e.path === 'title') return 'Judul SOP wajib diisi';
+      if (e.path === 'department') return 'Tim / Bagian wajib diisi';
+      if (e.path === 'responsible_person') return 'Penanggung Jawab wajib diisi';
+      if (e.path === 'effective_date') return 'Tanggal Berlaku wajib diisi (format: YYYY-MM-DD)';
+      return `${e.path}: ${e.message}`;
+    });
+    return `Validasi gagal: ${messages.join(', ')}`;
+  }
+
+  if (err.parent?.sqlMessage) {
+    if (err.parent.sqlMessage.includes('Duplicate entry')) {
+      return 'Kode SOP sudah terdaftar. Silakan gunakan Kode SOP yang berbeda.';
+    }
+    return `Kesalahan database: ${err.parent.sqlMessage}`;
+  }
+
+  return err.message || 'Gagal memproses data SOP.';
+}
+
 // GET /api/sops — semua SOP
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -101,8 +163,22 @@ router.get('/:id', requireAuth, async (req, res) => {
 router.post('/', requireAuth, async (req, res) => {
   try {
     const sopData = req.body;
-    if (!sopData.title || !sopData.code) {
-      return res.status(400).json({ detail: 'Kode SOP dan Judul SOP wajib diisi' });
+    if (!sopData.title || !String(sopData.title).trim()) {
+      return res.status(400).json({ detail: 'Judul SOP wajib diisi' });
+    }
+
+    // Pastikan Kode SOP terisi dan bersih
+    let cleanCode = (sopData.code ? String(sopData.code) : '').trim();
+    if (!cleanCode) {
+      cleanCode = `SOP-${Date.now()}`;
+    }
+
+    // Cek apakah kode sudah digunakan sebelum insert
+    const existing = await SOPDocument.findOne({ where: { code: cleanCode } });
+    if (existing) {
+      return res.status(400).json({
+        detail: `Kode SOP "${cleanCode}" sudah digunakan oleh dokumen "${existing.title}". Silakan gunakan Kode SOP yang berbeda.`
+      });
     }
 
     // Tentukan apakah SOP perlu approval atau langsung aktif
@@ -116,7 +192,7 @@ router.post('/', requireAuth, async (req, res) => {
     if (sopData.file_base64) {
       const pdfBuffer = Buffer.from(sopData.file_base64, 'base64');
       const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 15);
-      const safeCode = (sopData.code || 'SOP').replace(/[\/\\ ]/g, '_');
+      const safeCode = cleanCode.replace(/[\/\\ ]/g, '_');
       const filename = `${safeCode}_${timestamp}.pdf`;
       const uploadDir = path.join(__dirname, '..', 'uploads');
       if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
@@ -132,7 +208,7 @@ router.post('/', requireAuth, async (req, res) => {
       const foundSrc = possibleSrcPaths.find(p => fs.existsSync(p));
       if (foundSrc) {
         const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 15);
-        const safeCode = (sopData.code || 'SOP').replace(/[\/\\ ]/g, '_');
+        const safeCode = cleanCode.replace(/[\/\\ ]/g, '_');
         const ext = path.extname(foundSrc) || '.pdf';
         const newFilename = `${safeCode}_${timestamp}${ext}`;
         const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -166,25 +242,33 @@ router.post('/', requireAuth, async (req, res) => {
       is_manual = true;
     }
 
+    const cleanDepartment = (sopData.department && String(sopData.department).trim()) || req.user.department || 'Umum';
+    const cleanResponsiblePerson = (sopData.responsible_person && String(sopData.responsible_person).trim()) || req.user.full_name || req.user.email || 'Penanggung Jawab';
+    const cleanEffectiveDate = sanitizeDate(sopData.effective_date) || new Date().toISOString().slice(0, 10);
+    const cleanExpiryDate = sanitizeDate(sopData.expiry_date);
+    const cleanTglPembuatan = sanitizeDate(sopData.tanggal_pembuatan);
+    const cleanTglRevisi = sanitizeDate(sopData.tanggal_revisi);
+    const cleanTglEfektif = sanitizeDate(sopData.tanggal_efektif);
+
     const newSOP = await SOPDocument.create({
       id: uuidv4(),
-      code: sopData.code,
-      title: sopData.title,
-      description: sopData.description || '',
-      department: sopData.department || req.user.department || 'Umum',
-      responsible_person: sopData.responsible_person || req.user.full_name,
+      code: cleanCode,
+      title: String(sopData.title).trim(),
+      description: sopData.description ? String(sopData.description).trim() : '',
+      department: cleanDepartment,
+      responsible_person: cleanResponsiblePerson,
       status: isHigherRole ? (sopData.status || initialStatus) : 'draft',
       approval_status: initialApprovalStatus,
-      effective_date: sopData.effective_date || new Date().toISOString().slice(0, 10),
-      expiry_date: sopData.expiry_date || null,
+      effective_date: cleanEffectiveDate,
+      expiry_date: cleanExpiryDate,
       file_url,
       version: 1,
       is_manual,
       created_by: req.user.id,
       approved_by: isHigherRole ? req.user.id : null,
-      tanggal_pembuatan: sopData.tanggal_pembuatan || null,
-      tanggal_revisi: sopData.tanggal_revisi || null,
-      tanggal_efektif: sopData.tanggal_efektif || null,
+      tanggal_pembuatan: cleanTglPembuatan,
+      tanggal_revisi: cleanTglRevisi,
+      tanggal_efektif: cleanTglEfektif,
       dasar_hukum: sopData.dasar_hukum || null,
       kualifikasi_pelaksana: sopData.kualifikasi_pelaksana || null,
       keterkaitan: sopData.keterkaitan || null,
@@ -229,7 +313,7 @@ router.post('/', requireAuth, async (req, res) => {
     });
   } catch (err) {
     console.error('❌ Create SOP error:', err);
-    return res.status(500).json({ detail: err.message });
+    return res.status(400).json({ detail: getSequelizeErrorMessage(err) });
   }
 });
 
@@ -326,6 +410,43 @@ router.put('/:id', requireAuth, async (req, res) => {
       try { updates.pelaksana_columns = JSON.parse(updates.pelaksana_columns); } catch {}
     }
 
+    // Jika kode diubah, periksa keunikan
+    if (updates.code) {
+      const cleanNewCode = String(updates.code).trim();
+      if (cleanNewCode && cleanNewCode !== sop.code) {
+        const existing = await SOPDocument.findOne({ where: { code: cleanNewCode } });
+        if (existing && existing.id !== sop.id) {
+          return res.status(400).json({
+            detail: `Kode SOP "${cleanNewCode}" sudah digunakan oleh dokumen "${existing.title}". Silakan gunakan Kode SOP yang berbeda.`
+          });
+        }
+        updates.code = cleanNewCode;
+      }
+    }
+
+    // Sanitasi field tanggal untuk DATEONLY
+    if (updates.effective_date !== undefined) {
+      updates.effective_date = sanitizeDate(updates.effective_date) || sop.effective_date || new Date().toISOString().slice(0, 10);
+    }
+    if (updates.expiry_date !== undefined) {
+      updates.expiry_date = sanitizeDate(updates.expiry_date);
+    }
+    if (updates.tanggal_pembuatan !== undefined) {
+      updates.tanggal_pembuatan = sanitizeDate(updates.tanggal_pembuatan);
+    }
+    if (updates.tanggal_revisi !== undefined) {
+      updates.tanggal_revisi = sanitizeDate(updates.tanggal_revisi);
+    }
+    if (updates.tanggal_efektif !== undefined) {
+      updates.tanggal_efektif = sanitizeDate(updates.tanggal_efektif);
+    }
+    if (updates.department !== undefined) {
+      updates.department = (updates.department && String(updates.department).trim()) || sop.department || 'Umum';
+    }
+    if (updates.responsible_person !== undefined) {
+      updates.responsible_person = (updates.responsible_person && String(updates.responsible_person).trim()) || sop.responsible_person || 'Penanggung Jawab';
+    }
+
     // Fungsionalitas Admin Absolute:
     // Ketika Admin / Kepala Bagian merevisi dokumen, langsung otomatis 'approved' dan 'aktif' tanpa menunggu persetujuan!
     if (isHigherRole) {
@@ -376,7 +497,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     return res.json(sop);
   } catch (err) {
     console.error('❌ Update SOP error:', err);
-    return res.status(500).json({ detail: err.message });
+    return res.status(400).json({ detail: getSequelizeErrorMessage(err) });
   }
 });
 
