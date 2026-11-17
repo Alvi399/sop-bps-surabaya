@@ -958,6 +958,66 @@ function wrapText(
   return lines.length > 0 ? lines : ["-"];
 }
 
+export interface KOPConfig {
+  instansi?: string;        // Default: "Badan Pusat Statistik Kota Surabaya"
+  kepalaInstansi?: string;  // Default: "Kepala Badan Pusat Statistik Kota Surabaya"
+  subBagian?: string;       // Default: "Kepala Sub. Bagian Tata Usaha"
+  jabatanPengesah?: string; // Default: "Kepala BPS Kota Surabaya"
+  namaPengesah?: string;    // Default: "Dr. Arrief Chandra Setiawan, SST., M.Si."
+  nipPengesah?: string;     // Default: "NIP. 196508161992031001"
+  stempelImage?: Uint8Array | string; // Base64 data URL atau Uint8Array
+  ttdImage?: Uint8Array | string;     // Base64 data URL atau Uint8Array
+}
+
+async function resolveImageBytes(
+  input?: Uint8Array | string
+): Promise<{ bytes: Uint8Array; type: "png" | "jpg" } | null> {
+  if (!input) return null;
+  if (input instanceof Uint8Array) {
+    if (input[0] === 0x89 && input[1] === 0x50 && input[2] === 0x4e && input[3] === 0x47) {
+      return { bytes: input, type: "png" };
+    }
+    return { bytes: input, type: "jpg" };
+  }
+  if (typeof input === "string") {
+    if (input.startsWith("data:")) {
+      const isPng = input.includes("image/png");
+      const commaIdx = input.indexOf(",");
+      const b64 = input.slice(commaIdx + 1);
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return { bytes, type: isPng ? "png" : "jpg" };
+    }
+    try {
+      if (typeof window !== "undefined" && typeof window.fetch === "function") {
+        const resp = await fetch(input);
+        const buf = await resp.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        const isPng = bytes[0] === 0x89 && bytes[1] === 0x50;
+        return { bytes, type: isPng ? "png" : "jpg" };
+      } else {
+        const req = (name: string) => (globalThis as any)["require"] ? (globalThis as any)["require"](name) : null;
+        const fs = req("fs");
+        const path = req("path");
+        if (fs && path) {
+          const cleanPath = input.replace(/^\//, "");
+          const filePath = path.resolve(process.cwd(), "public", cleanPath);
+          if (fs.existsSync(filePath)) {
+            const buf = fs.readFileSync(filePath);
+            const bytes = new Uint8Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+            const isPng = bytes[0] === 0x89 && bytes[1] === 0x50;
+            return { bytes, type: isPng ? "png" : "jpg" };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load image bytes:", input, e);
+    }
+  }
+  return null;
+}
+
 export default async function generateSOPPdf(params: {
   nomor: string;
   namaSop: string;
@@ -975,6 +1035,7 @@ export default async function generateSOPPdf(params: {
   flowchartSteps?: FlowchartStep[];
   pelaksanaColumns?: string[];
   customShapeImages?: { [stepIndex: number]: Uint8Array };
+  kopConfig?: KOPConfig;
 }): Promise<Uint8Array> {
   try {
     console.log("🔵 Loading PDF template...");
@@ -1076,13 +1137,227 @@ export default async function generateSOPPdf(params: {
     const centerX = (page1.getWidth() - judulWidth) / 2;
     write(page1, namaSop, centerX, 405, 12, true);
 
+    const black = rgb(0, 0, 0);
+    const white = rgb(1, 1, 1);
+
+    // =========================================================================
+    // CUSTOM KOP & PENGESAHAN OVERLAY (Presisi Sesuai Grid Template Asli)
+    // =========================================================================
+    const DEFAULT_INSTANSI = "Badan Pusat Statistik Kota Surabaya";
+    const DEFAULT_KEPALA_INSTANSI = "Kepala Badan Pusat Statistik Kota Surabaya";
+    const DEFAULT_SUB_BAGIAN = "Kepala Sub. Bagian Tata Usaha";
+    const DEFAULT_JABATAN_PENGESAH = "Kepala BPS Kota Surabaya";
+    const DEFAULT_NAMA_PENGESAH = "Dr. Arrief Chandra Setiawan, SST., M.Si.";
+    const DEFAULT_NIP_PENGESAH = "NIP. 196508161992031001";
+
+    const kopConfig = params.kopConfig;
+
+    // Helper: embed PNG atau JPG
+    const embedImageToDoc = async (imgData: { bytes: Uint8Array; type: "png" | "jpg" }) => {
+      if (imgData.type === "png") {
+        return await pdfDoc.embedPng(imgData.bytes);
+      } else {
+        return await pdfDoc.embedJpg(imgData.bytes);
+      }
+    };
+
+    // A. CUSTOM INSTANSI (Baris 1 KOP Kiri Atas)
+    if (kopConfig?.instansi && kopConfig.instansi.trim() && kopConfig.instansi.trim() !== DEFAULT_INSTANSI) {
+      page1.drawRectangle({
+        x: 188.5,
+        y: 532.1,
+        width: 279.5,
+        height: 11.2,
+        color: white,
+        borderWidth: 0,
+      });
+      const txt = kopConfig.instansi.trim();
+      let sz = 9.48;
+      const tw = fontRegular.widthOfTextAtSize(txt, sz);
+      if (tw > 270) sz = Math.max(6.5, (270 / tw) * sz);
+      page1.drawText(txt, {
+        x: 193.5,
+        y: 535.1,
+        size: sz,
+        font: fontRegular,
+        color: black,
+      });
+    }
+
+    // B. CUSTOM KEPALA INSTANSI (Baris 2 KOP Kiri Atas)
+    if (kopConfig?.kepalaInstansi && kopConfig.kepalaInstansi.trim() && kopConfig.kepalaInstansi.trim() !== DEFAULT_KEPALA_INSTANSI) {
+      page1.drawRectangle({
+        x: 188.5,
+        y: 520.2,
+        width: 279.5,
+        height: 11.2,
+        color: white,
+        borderWidth: 0,
+      });
+      const txt = kopConfig.kepalaInstansi.trim();
+      let sz = 9.48;
+      const tw = fontRegular.widthOfTextAtSize(txt, sz);
+      if (tw > 270) sz = Math.max(6.5, (270 / tw) * sz);
+      page1.drawText(txt, {
+        x: 193.5,
+        y: 523.2,
+        size: sz,
+        font: fontRegular,
+        color: black,
+      });
+    }
+
+    // C. CUSTOM SUB BAGIAN (Baris 3 KOP Kiri Atas)
+    if (kopConfig?.subBagian && kopConfig.subBagian.trim() && kopConfig.subBagian.trim() !== DEFAULT_SUB_BAGIAN) {
+      page1.drawRectangle({
+        x: 188.5,
+        y: 508.2,
+        width: 279.5,
+        height: 11.2,
+        color: white,
+        borderWidth: 0,
+      });
+      const txt = kopConfig.subBagian.trim();
+      let sz = 9.48;
+      const tw = fontRegular.widthOfTextAtSize(txt, sz);
+      if (tw > 270) sz = Math.max(6.5, (270 / tw) * sz);
+      page1.drawText(txt, {
+        x: 193.5,
+        y: 511.3,
+        size: sz,
+        font: fontRegular,
+        color: black,
+      });
+    }
+
+    // D. PENGESAHAN (Kotak Kanan Atas: Jabatan, Stempel, TTD, Nama, NIP)
+    const customJabatan = Boolean(kopConfig?.jabatanPengesah && kopConfig.jabatanPengesah.trim() && kopConfig.jabatanPengesah.trim() !== DEFAULT_JABATAN_PENGESAH);
+    const customNama = Boolean(kopConfig?.namaPengesah && kopConfig.namaPengesah.trim() && kopConfig.namaPengesah.trim() !== DEFAULT_NAMA_PENGESAH);
+    const customNip = Boolean(kopConfig?.nipPengesah && kopConfig.nipPengesah.trim() && kopConfig.nipPengesah.trim() !== DEFAULT_NIP_PENGESAH);
+    const hasCustomStempel = Boolean(kopConfig?.stempelImage);
+    const hasCustomTtd = Boolean(kopConfig?.ttdImage);
+
+    if (customJabatan || customNama || customNip || hasCustomStempel || hasCustomTtd) {
+      // Tutup area dalam kotak pengesahan secara presisi tanpa merusak garis border
+      page1.drawRectangle({
+        x: 582.0,
+        y: 424.5,
+        width: 295.5,
+        height: 70.7,
+        color: white,
+        borderWidth: 0,
+      });
+
+      // 1. Jabatan Pengesah
+      const jabatanText = kopConfig?.jabatanPengesah?.trim() || DEFAULT_JABATAN_PENGESAH;
+      let szJabatan = 9.48;
+      const twJabatan = fontRegular.widthOfTextAtSize(jabatanText, szJabatan);
+      if (twJabatan > 280) szJabatan = Math.max(6.5, (280 / twJabatan) * szJabatan);
+      page1.drawText(jabatanText, {
+        x: 587.0,
+        y: 486.6,
+        size: szJabatan,
+        font: fontRegular,
+        color: black,
+      });
+
+      // 2. Stempel (Target box asli: X: 588.00, Y: 423.01, MaxW: 78.05, MaxH: 83.07)
+      const stempelData = await resolveImageBytes(kopConfig?.stempelImage || "/templates/default_X2.jpg");
+      if (stempelData) {
+        try {
+          const stempelImg = await embedImageToDoc(stempelData);
+          const maxW = 78.05;
+          const maxH = 83.07;
+          let drawW = maxW;
+          let drawH = maxH;
+          if (stempelImg.width && stempelImg.height) {
+            const aspect = stempelImg.width / stempelImg.height;
+            drawW = maxW;
+            drawH = maxW / aspect;
+            if (drawH > maxH) {
+              drawH = maxH;
+              drawW = maxH * aspect;
+            }
+          }
+          page1.drawImage(stempelImg, {
+            x: 588.00,
+            y: 423.01,
+            width: drawW,
+            height: drawH,
+          });
+        } catch (stErr) {
+          console.warn("Gagal menempelkan stempel:", stErr);
+        }
+      }
+
+      // 3. Tanda Tangan (Target box asli: X: 642.00, Y: 436.97, MaxW: 78.21, MaxH: 54.21)
+      const ttdData = await resolveImageBytes(kopConfig?.ttdImage || "/templates/default_X0.jpg");
+      if (ttdData) {
+        try {
+          const ttdImg = await embedImageToDoc(ttdData);
+          const maxW = 82;
+          const maxH = 52;
+          let drawW = maxW;
+          let drawH = maxH;
+          if (ttdImg.width && ttdImg.height) {
+            const aspect = ttdImg.width / ttdImg.height;
+            drawW = maxW;
+            drawH = maxW / aspect;
+            if (drawH > maxH) {
+              drawH = maxH;
+              drawW = maxH * aspect;
+            }
+          }
+          page1.drawImage(ttdImg, {
+            x: 642.00,
+            y: 436.97,
+            width: drawW,
+            height: drawH,
+          });
+        } catch (ttdErr) {
+          console.warn("Gagal menempelkan TTD:", ttdErr);
+        }
+      }
+
+      // 4. Nama Pejabat Pengesah (Bold & Underline)
+      const namaText = kopConfig?.namaPengesah?.trim() || DEFAULT_NAMA_PENGESAH;
+      let szNama = 9.5;
+      const twNama = fontBold.widthOfTextAtSize(namaText, szNama);
+      if (twNama > 280) szNama = Math.max(6.5, (280 / twNama) * szNama);
+      page1.drawText(namaText, {
+        x: 587.0,
+        y: 438.8,
+        size: szNama,
+        font: fontBold,
+        color: black,
+      });
+      const finalTwNama = fontBold.widthOfTextAtSize(namaText, szNama);
+      page1.drawLine({
+        start: { x: 587.0, y: 437.0 },
+        end: { x: 587.0 + Math.min(finalTwNama, 280), y: 437.0 },
+        thickness: 0.72,
+        color: black,
+      });
+
+      // 5. NIP Pejabat Pengesah
+      const nipText = kopConfig?.nipPengesah?.trim() || DEFAULT_NIP_PENGESAH;
+      let szNip = 9.5;
+      const twNip = fontRegular.widthOfTextAtSize(nipText, szNip);
+      if (twNip > 280) szNip = Math.max(6.5, (280 / twNip) * szNip);
+      page1.drawText(nipText, {
+        x: 587.0,
+        y: 427.3,
+        size: szNip,
+        font: fontRegular,
+        color: black,
+      });
+    }
+
     // =========================================================================
     // DYNAMIC VECTOR TABLE RENDERING FOR PAGE 1 (Tabel Mengembang Otomatis)
     // =========================================================================
     // Alih-alih menimpa teks pada template kaku, area tabel lama ditutup putih bersih
     // dan digambar ulang secara dinamis dengan tinggi baris menyesuaikan panjang isi teks.
-    const black = rgb(0, 0, 0);
-    const white = rgb(1, 1, 1);
     const borderWidth = 0.8;
 
     const startX = 95.4;

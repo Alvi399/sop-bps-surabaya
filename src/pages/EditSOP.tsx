@@ -15,7 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { 
   Save, Send, Workflow, FileText, Sparkles,
-  Plus, Trash2, MoveUp, MoveDown, X, ArrowLeft, Upload, CheckCircle, RotateCcw, Eye, Maximize2
+  Plus, Trash2, MoveUp, MoveDown, X, ArrowLeft, Upload, CheckCircle, RotateCcw, Eye, Maximize2,
+  Building2, Stamp, FileSignature
 } from "lucide-react";
 import { AuthService } from "@/lib/auth";
 import { toast } from "sonner";
@@ -217,8 +218,49 @@ export default function EditSOP() {
     description: "",
     effectiveDate: "",
     expiryDate: "",
-    status: "draft"
+    status: "draft",
+    // KOP & Pengesahan Kustom (Opsional)
+    instansi: "",
+    kepalaInstansi: "",
+    subBagian: "",
+    jabatanPengesah: "",
+    namaPengesah: "",
+    nipPengesah: "",
   });
+
+  // Stempel & Tanda Tangan kustom
+  const [stempelImage, setStempelImage] = useState<string | null>(null);
+  const [ttdImage, setTtdImage] = useState<string | null>(null);
+
+  const handleStempelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Ukuran file stempel maksimal 2MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setStempelImage(reader.result as string);
+      toast.success("✅ File stempel berhasil dimuat");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleTtdUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Ukuran file tanda tangan maksimal 2MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setTtdImage(reader.result as string);
+      toast.success("✅ File tanda tangan berhasil dimuat");
+    };
+    reader.readAsDataURL(file);
+  };
 
   const [pelaksanaColumns, setPelaksanaColumns] = useState<string[]>([
     "Kasubbag Tata Usaha",
@@ -337,7 +379,14 @@ export default function EditSOP() {
         description: sop.description || "",
         effectiveDate: formatDateForInput(sop.effective_date),
         expiryDate: formatDateForInput(sop.expiry_date),
-        status: sop.status || "draft"
+        status: sop.status || "draft",
+        // KOP & Pengesahan Kustom (Opsional)
+        instansi: "",
+        kepalaInstansi: "",
+        subBagian: "",
+        jabatanPengesah: "",
+        namaPengesah: "",
+        nipPengesah: "",
       };
 
       setApprovalStatus(sop.approval_status || 'pending');
@@ -376,13 +425,18 @@ export default function EditSOP() {
         }
       }
 
-      // Parse Flowchart Steps
+      // Parse Flowchart Steps & KOP Config
       let initialSteps: FlowchartStep[] = [];
+      let loadedKopConfig: any = null;
       if (sop.flowchart_steps) {
         try {
           let steps = sop.flowchart_steps;
           if (typeof steps === 'string') { try { steps = JSON.parse(steps); } catch {} }
           if (typeof steps === 'string') { try { steps = JSON.parse(steps); } catch {} }
+          if (steps && !Array.isArray(steps) && steps.steps) {
+            loadedKopConfig = steps.kopConfig;
+            steps = steps.steps;
+          }
           if (Array.isArray(steps) && steps.length > 0) {
             initialSteps = steps.map((s: any, idx: number) => ({
               no: s.no || idx + 1,
@@ -407,6 +461,17 @@ export default function EditSOP() {
         }
       }
 
+      if (loadedKopConfig) {
+        if (loadedKopConfig.instansi) initialForm.instansi = loadedKopConfig.instansi;
+        if (loadedKopConfig.kepalaInstansi) initialForm.kepalaInstansi = loadedKopConfig.kepalaInstansi;
+        if (loadedKopConfig.subBagian) initialForm.subBagian = loadedKopConfig.subBagian;
+        if (loadedKopConfig.jabatanPengesah) initialForm.jabatanPengesah = loadedKopConfig.jabatanPengesah;
+        if (loadedKopConfig.namaPengesah) initialForm.namaPengesah = loadedKopConfig.namaPengesah;
+        if (loadedKopConfig.nipPengesah) initialForm.nipPengesah = loadedKopConfig.nipPengesah;
+        if (loadedKopConfig.stempelImage) setStempelImage(loadedKopConfig.stempelImage);
+        if (loadedKopConfig.ttdImage) setTtdImage(loadedKopConfig.ttdImage);
+      }
+
       if (initialSteps.length === 0) {
         const pObj: { [key: string]: boolean } = {};
         initialCols.forEach(c => { pObj[c] = false; });
@@ -423,10 +488,12 @@ export default function EditSOP() {
 
       // Simpan backup data asli server
       serverDataRef.current = {
-        formData: initialForm,
+        formData: { ...initialForm },
         uploadFormData: initialUploadForm,
         pelaksanaColumns: initialCols,
         flowchartSteps: initialSteps,
+        stempelImage: loadedKopConfig?.stempelImage || null,
+        ttdImage: loadedKopConfig?.ttdImage || null,
       };
 
       // Periksa apakah ada draft lokal Auto-Save yang lebih baru
@@ -449,6 +516,8 @@ export default function EditSOP() {
             }
             if (parsed.uploadFormData) setUploadFormData(parsed.uploadFormData);
             if (parsed.activeTab) setActiveTab(parsed.activeTab);
+            if (parsed.stempelImage) setStempelImage(parsed.stempelImage);
+            if (parsed.ttdImage) setTtdImage(parsed.ttdImage);
 
             usedDraft = true;
             setDraftRestored(true);
@@ -493,6 +562,8 @@ export default function EditSOP() {
           flowchartSteps,
           uploadFormData,
           activeTab,
+          stempelImage,
+          ttdImage,
           savedAt: new Date().toISOString(),
         };
         localStorage.setItem(AUTOSAVE_EDIT_KEY, JSON.stringify(draft));
@@ -500,7 +571,7 @@ export default function EditSOP() {
     } catch (e) {
       console.error("Error auto-saving draft:", e);
     }
-  }, [formData, pelaksanaColumns, flowchartSteps, uploadFormData, activeTab, loading]);
+  }, [formData, pelaksanaColumns, flowchartSteps, uploadFormData, activeTab, loading, stempelImage, ttdImage]);
 
   const resetToOriginalServerData = () => {
     if (!serverDataRef.current) return;
@@ -510,6 +581,8 @@ export default function EditSOP() {
       setUploadFormData(serverDataRef.current.uploadFormData);
       setPelaksanaColumns(serverDataRef.current.pelaksanaColumns);
       setFlowchartSteps(serverDataRef.current.flowchartSteps);
+      if (serverDataRef.current.stempelImage !== undefined) setStempelImage(serverDataRef.current.stempelImage);
+      if (serverDataRef.current.ttdImage !== undefined) setTtdImage(serverDataRef.current.ttdImage);
       setDraftRestored(false);
       toast.success("Formulir berhasil direset ke data asli server!");
     }
@@ -839,6 +912,26 @@ export default function EditSOP() {
 
       localStorage.removeItem(AUTOSAVE_EDIT_KEY);
       const isHigher = currentUser?.role === 'admin' || currentUser?.role === 'kepala_bagian';
+
+      // Jika SOP ini sebelumnya ditolak (rejected) atau bukan admin, otomatis ajukan revisi jika bukan draft
+      if (!isHigher && (approvalStatus === 'rejected' || !isDraft)) {
+        try {
+          await fetch(`${API_URL}/sops/${id}/request-revision`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              revision_notes: "Pembaruan dokumen SOP (upload berkas baru)",
+            }),
+          });
+          console.log("🔄 Otomatis mengajukan revisi ulang (request-revision) untuk upload manual");
+        } catch (revErr) {
+          console.warn("⚠️ Gagal auto request-revision:", revErr);
+        }
+      }
+
       toast.success(
         isHigher && !isDraft
           ? "✨ SOP berhasil diperbarui dan langsung disetujui (Admin Absolute)!"
@@ -908,6 +1001,16 @@ export default function EditSOP() {
         flowchartSteps: flowchartSteps,
         pelaksanaColumns: pelaksanaColumns,
         customShapeImages: customShapeImages,
+        kopConfig: {
+          instansi: formData.instansi,
+          kepalaInstansi: formData.kepalaInstansi,
+          subBagian: formData.subBagian,
+          jabatanPengesah: formData.jabatanPengesah,
+          namaPengesah: formData.namaPengesah,
+          nipPengesah: formData.nipPengesah,
+          stempelImage: stempelImage || undefined,
+          ttdImage: ttdImage || undefined,
+        },
       });
 
       const base64Pdf = btoa(
@@ -936,7 +1039,19 @@ export default function EditSOP() {
         pencatatanPendataan: formData.pencatatanPendataan || null,
         maksud: formData.maksud || null,
         tujuan: formData.tujuan || null,
-        flowchart_steps: JSON.stringify(flowchartSteps),
+        flowchart_steps: JSON.stringify({
+          steps: flowchartSteps,
+          kopConfig: {
+            instansi: formData.instansi,
+            kepalaInstansi: formData.kepalaInstansi,
+            subBagian: formData.subBagian,
+            jabatanPengesah: formData.jabatanPengesah,
+            namaPengesah: formData.namaPengesah,
+            nipPengesah: formData.nipPengesah,
+            stempelImage: stempelImage || undefined,
+            ttdImage: ttdImage || undefined,
+          }
+        }),
         pelaksana_columns: JSON.stringify(pelaksanaColumns),
       };
 
@@ -1038,6 +1153,16 @@ export default function EditSOP() {
         flowchartSteps: flowchartSteps,
         pelaksanaColumns: pelaksanaColumns,
         customShapeImages: customShapeImages,
+        kopConfig: {
+          instansi: formData.instansi,
+          kepalaInstansi: formData.kepalaInstansi,
+          subBagian: formData.subBagian,
+          jabatanPengesah: formData.jabatanPengesah,
+          namaPengesah: formData.namaPengesah,
+          nipPengesah: formData.nipPengesah,
+          stempelImage: stempelImage || undefined,
+          ttdImage: ttdImage || undefined,
+        },
       });
 
       const blob = new Blob([pdfBytes as any], { type: "application/pdf" });
@@ -1287,6 +1412,186 @@ export default function EditSOP() {
                           onChange={(e) => handleInputChange("responsiblePerson", e.target.value)}
                           className="mt-1.5 h-10"
                         />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* ===== CARD KOP & PENGESAHAN DOKUMEN (OPSIONAL) ===== */}
+                <Card className="bg-white/80 backdrop-blur-md shadow-xl border border-blue-200">
+                  <CardHeader className="pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Building2 className="h-5 w-5 text-indigo-600" />
+                          Kustomisasi Teks KOP & Pengesahan (Opsional)
+                        </CardTitle>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Secara default mengikuti template resmi BPS Kota Surabaya & Dr. Arrief Chandra Setiawan. Isi jika ingin mengubah teks instansi, pejabat, atau mengganti stempel & tanda tangan.
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-[11px] self-start sm:self-auto bg-blue-50 text-blue-700 border-blue-200">
+                        Template Default Aktif
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg bg-gray-50/70 border border-gray-100">
+                      {/* Kolom Kiri: KOP Instansi */}
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5 pb-1 border-b border-gray-200">
+                          🏢 KOP Surat (Kiri Atas PDF)
+                        </h4>
+                        <div>
+                          <Label htmlFor="instansi" className="text-xs font-medium text-gray-700">Nama Instansi</Label>
+                          <Input
+                            id="instansi"
+                            placeholder="Badan Pusat Statistik Kota Surabaya"
+                            value={formData.instansi || ""}
+                            onChange={(e) => handleInputChange("instansi", e.target.value)}
+                            className="mt-1 h-9 text-sm"
+                          />
+                          <p className="text-[11px] text-gray-400 mt-0.5">Kosongkan untuk memakai teks bawaan template</p>
+                        </div>
+                        <div>
+                          <Label htmlFor="kepalaInstansi" className="text-xs font-medium text-gray-700">Kepala Instansi</Label>
+                          <Input
+                            id="kepalaInstansi"
+                            placeholder="Kepala Badan Pusat Statistik Kota Surabaya"
+                            value={formData.kepalaInstansi || ""}
+                            onChange={(e) => handleInputChange("kepalaInstansi", e.target.value)}
+                            className="mt-1 h-9 text-sm"
+                          />
+                          <p className="text-[11px] text-gray-400 mt-0.5">Kosongkan untuk memakai teks bawaan template</p>
+                        </div>
+                        <div>
+                          <Label htmlFor="subBagian" className="text-xs font-medium text-gray-700">Kepala Sub. Bagian / Satuan Kerja</Label>
+                          <Input
+                            id="subBagian"
+                            placeholder="Kepala Sub. Bagian Tata Usaha"
+                            value={formData.subBagian || ""}
+                            onChange={(e) => handleInputChange("subBagian", e.target.value)}
+                            className="mt-1 h-9 text-sm"
+                          />
+                          <p className="text-[11px] text-gray-400 mt-0.5">Kosongkan untuk memakai teks bawaan template</p>
+                        </div>
+                      </div>
+
+                      {/* Kolom Kanan: Pengesahan */}
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5 pb-1 border-b border-gray-200">
+                          ✍️ Pengesahan Dokumen (Kanan Atas PDF)
+                        </h4>
+                        <div>
+                          <Label htmlFor="jabatanPengesah" className="text-xs font-medium text-gray-700">Jabatan Pengesah</Label>
+                          <Input
+                            id="jabatanPengesah"
+                            placeholder="Kepala BPS Kota Surabaya"
+                            value={formData.jabatanPengesah || ""}
+                            onChange={(e) => handleInputChange("jabatanPengesah", e.target.value)}
+                            className="mt-1 h-9 text-sm"
+                          />
+                          <p className="text-[11px] text-gray-400 mt-0.5">Kosongkan untuk memakai teks bawaan template</p>
+                        </div>
+                        <div>
+                          <Label htmlFor="namaPengesah" className="text-xs font-medium text-gray-700">Nama Pejabat Penandatangan</Label>
+                          <Input
+                            id="namaPengesah"
+                            placeholder="Dr. Arrief Chandra Setiawan, SST., M.Si."
+                            value={formData.namaPengesah || ""}
+                            onChange={(e) => handleInputChange("namaPengesah", e.target.value)}
+                            className="mt-1 h-9 text-sm"
+                          />
+                          <p className="text-[11px] text-gray-400 mt-0.5">Kosongkan untuk memakai nama pejabat bawaan template</p>
+                        </div>
+                        <div>
+                          <Label htmlFor="nipPengesah" className="text-xs font-medium text-gray-700">NIP Pejabat</Label>
+                          <Input
+                            id="nipPengesah"
+                            placeholder="NIP. 196508161992031001"
+                            value={formData.nipPengesah || ""}
+                            onChange={(e) => handleInputChange("nipPengesah", e.target.value)}
+                            className="mt-1 h-9 text-sm"
+                          />
+                          <p className="text-[11px] text-gray-400 mt-0.5">Kosongkan untuk memakai NIP bawaan template</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Baris Bawah: Upload Stempel & Tanda Tangan */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg bg-blue-50/50 border border-blue-100">
+                      {/* Upload Stempel */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-semibold text-gray-800 flex items-center gap-1.5">
+                            <Stamp className="h-4 w-4 text-blue-600" />
+                            Upload Stempel Baru (Opsional)
+                          </Label>
+                          {stempelImage && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setStempelImage(null)}
+                              className="h-6 text-xs text-red-600 hover:text-red-700 px-1.5"
+                            >
+                              Reset ke Default
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-500">
+                          Disarankan format <strong>PNG transparan</strong> agar stempel bertumpuk rapi di dokumen.
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <Input
+                            type="file"
+                            accept="image/png,image/jpeg"
+                            onChange={handleStempelUpload}
+                            className="text-xs h-9 cursor-pointer file:cursor-pointer"
+                          />
+                          {stempelImage && (
+                            <div className="h-10 w-10 flex-shrink-0 border rounded bg-white p-1 flex items-center justify-center shadow-sm">
+                              <img src={stempelImage} alt="Stempel Preview" className="max-h-full max-w-full object-contain" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Upload Tanda Tangan */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-semibold text-gray-800 flex items-center gap-1.5">
+                            <FileSignature className="h-4 w-4 text-purple-600" />
+                            Upload Tanda Tangan Baru (Opsional)
+                          </Label>
+                          {ttdImage && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setTtdImage(null)}
+                              className="h-6 text-xs text-red-600 hover:text-red-700 px-1.5"
+                            >
+                              Reset ke Default
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-500">
+                          Disarankan format <strong>PNG transparan</strong> tanpa latar putih untuk posisi tanda tangan presisi.
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <Input
+                            type="file"
+                            accept="image/png,image/jpeg"
+                            onChange={handleTtdUpload}
+                            className="text-xs h-9 cursor-pointer file:cursor-pointer"
+                          />
+                          {ttdImage && (
+                            <div className="h-10 w-10 flex-shrink-0 border rounded bg-white p-1 flex items-center justify-center shadow-sm">
+                              <img src={ttdImage} alt="TTD Preview" className="max-h-full max-w-full object-contain" />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </CardContent>

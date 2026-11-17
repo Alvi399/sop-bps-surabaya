@@ -163,9 +163,14 @@ export function RevisionSection() {
   }, 3000);
 
   // ===== PERMISSION CONTROL =====
+  const canApproveRevisions = () => {
+    if (!currentUser) return false;
+    return ['admin', 'kepala_bagian', 'ketua_tim'].includes(currentUser.role);
+  };
+
   const canManageRevisions = () => {
     if (!currentUser) return false;
-    return ['admin', 'kepala_bagian', 'ketua_tim'].includes(currentUser.role); // ✅ Ganti 'kepala' → 'kepala_bagian'
+    return ['admin', 'kepala_bagian', 'ketua_tim', 'staf'].includes(currentUser.role);
   };
 
   // ===== HELPER FUNCTIONS =====
@@ -224,7 +229,7 @@ export function RevisionSection() {
   };
 
   const handleApproveRevision = (revision: SOPRevision) => {
-    if (!canManageRevisions()) {
+    if (!canApproveRevisions()) {
       toast.error('Anda tidak memiliki izin untuk menyetujui revisi!');
       return;
     }
@@ -234,7 +239,7 @@ export function RevisionSection() {
   };
 
   const handleRejectRevision = (revision: SOPRevision) => {
-    if (!canManageRevisions()) {
+    if (!canApproveRevisions()) {
       toast.error('Anda tidak memiliki izin untuk menolak revisi!');
       return;
     }
@@ -437,6 +442,7 @@ export function RevisionSection() {
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64String = reader.result as string;
+        const base64Clean = base64String.split(',')[1] || base64String;
         
         // Update SOP file via API
         const sop = getSOPDocument(selectedRevision.sopId);
@@ -445,7 +451,9 @@ export function RevisionSection() {
             await axios.put(
               `${API_URL}/sops/${sop.id}`,
               {
-                file_url: base64String, // atau upload ke server dulu
+                file_url: base64String,
+                file_base64: base64Clean,
+                is_manual: true,
               },
               {
                 headers: {
@@ -458,13 +466,15 @@ export function RevisionSection() {
             setUploadDialogOpen(false);
             toast.success('✅ File berhasil diupload!');
             fetchData(); // Refresh data
-          } catch (error) {
-            toast.error('❌ Gagal upload file!');
+          } catch (error: any) {
+            console.error("Error upload file revision:", error);
+            toast.error(error.response?.data?.detail || '❌ Gagal upload file!');
           }
         }
       };
       reader.readAsDataURL(uploadFile);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error reading file:", error);
       toast.error('❌ Gagal upload file!');
     }
   };
@@ -475,12 +485,12 @@ export function RevisionSection() {
   const rejectedRevisions = revisions.filter(r => r.status === 'ditolak');
 
   // ===== PERMISSION CHECK UI =====
-  if (!canManageRevisions()) {
+  if (!currentUser) {
     return (
       <Alert className="border-red-200 bg-red-50 my-4">
         <AlertTriangle className="h-4 w-4 text-red-600" />
         <AlertDescription className="text-red-800">
-          Anda tidak memiliki izin untuk mengakses fitur revisi. Fitur ini khusus untuk Admin, Kepala Bagian, dan Ketua Tim.
+          Silakan login untuk mengakses fitur riwayat revisi SOP.
         </AlertDescription>
       </Alert>
     );
@@ -580,7 +590,7 @@ export function RevisionSection() {
             {/* TAB: DISETUJUI */}
             <TabsContent value="approved">
               <div className="rounded-xl border border-gray-200 overflow-x-auto bg-white/50 backdrop-blur-sm">
-                <Table className="min-w-[750px]">
+                <Table className="min-w-[850px]">
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-blue-50 to-purple-50">
                       <TableHead>SOP</TableHead>
@@ -589,12 +599,13 @@ export function RevisionSection() {
                       <TableHead>Direvisi Oleh</TableHead>
                       <TableHead>Disetujui Oleh</TableHead>
                       <TableHead>Tanggal Persetujuan</TableHead>
+                      <TableHead className="text-right">Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {approvedRevisions.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-16">
+                        <TableCell colSpan={7} className="text-center py-16">
                           <div className="flex flex-col items-center justify-center">
                             <div className="rounded-full bg-green-50 p-4 mb-4">
                               <CheckCircle className="h-12 w-12 text-green-400" />
@@ -666,6 +677,38 @@ export function RevisionSection() {
                               <span className="text-sm text-gray-400">-</span>
                             )}
                           </TableCell>
+
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewRevision(revision)}
+                                title="Lihat Detail Revisi"
+                                className="hover:bg-blue-50 text-blue-600"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDownloadRevision(revision)}
+                                title="Download Dokumen"
+                                className="hover:bg-gray-100 text-gray-700"
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleUploadNewVersion(revision)}
+                                title="Upload Dokumen Versi Baru"
+                                className="hover:bg-purple-50 text-purple-600"
+                              >
+                                <Upload className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))
                     )}
@@ -677,7 +720,7 @@ export function RevisionSection() {
             {/* TAB: DITOLAK */}
             <TabsContent value="rejected">
               <div className="rounded-xl border border-gray-200 overflow-x-auto bg-white/50 backdrop-blur-sm">
-                <Table className="min-w-[750px]">
+                <Table className="min-w-[850px]">
                   <TableHeader>
                     <TableRow className="bg-gradient-to-r from-blue-50 to-purple-50">
                       <TableHead>SOP</TableHead>
@@ -686,12 +729,13 @@ export function RevisionSection() {
                       <TableHead>Direvisi Oleh</TableHead>
                       <TableHead>Alasan Penolakan</TableHead>
                       <TableHead>Tanggal Penolakan</TableHead>
+                      <TableHead className="text-right">Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {rejectedRevisions.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-12">
+                        <TableCell colSpan={7} className="text-center py-12">
                           <XCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                           <p className="text-gray-500 font-medium">Tidak ada revisi yang ditolak</p>
                           <p className="text-sm text-gray-400 mt-1">Semua revisi memenuhi standar</p>
@@ -720,6 +764,28 @@ export function RevisionSection() {
                           </TableCell>
                           <TableCell className="text-sm">
                             {format(new Date(revision.revisionDate), 'dd MMM yyyy', { locale: id })}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewRevision(revision)}
+                                title="Lihat Detail Revisi"
+                                className="hover:bg-blue-50 text-blue-600"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleUploadNewVersion(revision)}
+                                title="Upload Dokumen Baru Setelah Ditolak"
+                                className="hover:bg-purple-50 text-purple-600"
+                              >
+                                <Upload className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))

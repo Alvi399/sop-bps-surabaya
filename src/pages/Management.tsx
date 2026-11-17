@@ -98,7 +98,7 @@ export default function Management() {
   const canApprove =
     currentUser && ["admin", "kepala_bagian", "ketua_tim"].includes(currentUser.role);
   const isAuthorizedForRevision =
-    currentUser && ["admin", "kepala_bagian", "ketua_tim"].includes(currentUser.role);
+    currentUser && ["admin", "kepala_bagian", "ketua_tim", "staf"].includes(currentUser.role);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -701,8 +701,8 @@ export default function Management() {
                                 </>
                               )}
 
-                              {/* Edit: semua bisa edit, kecuali SOP pending yang bukan milik sendiri */}
-                              {(isAdmin || doc.createdBy === currentUser?.id || !doc.createdBy) && doc.approvalStatus !== 'pending' && (
+                              {/* Edit: Admin bisa edit semua; Owner bisa edit SOP miliknya sendiri (termasuk status pending/rejected); Rekan tim bisa edit jika bukan pending */}
+                              {(isAdmin || doc.createdBy === currentUser?.id || !doc.createdBy || doc.approvalStatus !== 'pending') && (
                                 <Button
                                   variant="ghost"
                                   size="sm"

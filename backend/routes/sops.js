@@ -173,7 +173,7 @@ router.post('/', requireAuth, async (req, res) => {
       description: sopData.description || '',
       department: sopData.department || req.user.department || 'Umum',
       responsible_person: sopData.responsible_person || req.user.full_name,
-      status: sopData.status || initialStatus,
+      status: isHigherRole ? (sopData.status || initialStatus) : 'draft',
       approval_status: initialApprovalStatus,
       effective_date: sopData.effective_date || new Date().toISOString().slice(0, 10),
       expiry_date: sopData.expiry_date || null,
@@ -242,8 +242,11 @@ router.put('/:id', requireAuth, async (req, res) => {
     // Pengecekan hak edit: Admin & Kepala Bagian bebas edit; Staf / Ketua Tim hanya SOP milik sendiri atau departemennya
     const isOwner = !sop.created_by || sop.created_by === req.user.id;
     const isHigherRole = ['admin', 'kepala_bagian'].includes(req.user.role);
-    if (!isHigherRole && !isOwner) {
-      return res.status(403).json({ detail: 'Anda hanya memiliki akses mengedit SOP milik Anda sendiri.' });
+    const isSameDept = req.user.department && sop.department && (
+      req.user.department.toLowerCase().trim() === sop.department.toLowerCase().trim()
+    );
+    if (!isHigherRole && !isOwner && !isSameDept) {
+      return res.status(403).json({ detail: 'Anda hanya memiliki akses mengedit SOP milik Anda sendiri atau tim Anda.' });
     }
 
     const oldData = {
@@ -263,6 +266,12 @@ router.put('/:id', requireAuth, async (req, res) => {
     ];
     const updates = {};
     allowedFields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
+
+    // Handle update file base64 (bisa dari req.body.file_base64 atau data URI di req.body.file_url)
+    let incomingBase64 = req.body.file_base64;
+    if (!incomingBase64 && typeof req.body.file_url === 'string' && req.body.file_url.startsWith('data:')) {
+      incomingBase64 = req.body.file_url.split(',')[1];
+    }
 
     const isCurrentlyManual = Boolean(sop.is_manual);
 
@@ -287,7 +296,7 @@ router.put('/:id', requireAuth, async (req, res) => {
       // Dokumen saat ini adalah generate PDF:
       // - Jika diganti dengan Upload PDF manual, maka yang dipakai adalah PDF manual dan status berubah jadi manual
       // - Jika diupdate dengan generate pdf, tetap generate pdf
-      const isSwitchingToManual = req.body.is_manual === true || (req.body.file_base64 && req.body.flowchart_steps === undefined);
+      const isSwitchingToManual = req.body.is_manual === true || (incomingBase64 && req.body.flowchart_steps === undefined);
       if (isSwitchingToManual) {
         updates.is_manual = true;
         updates.flowchart_steps = null;
@@ -296,12 +305,6 @@ router.put('/:id', requireAuth, async (req, res) => {
       } else {
         updates.is_manual = false;
       }
-    }
-
-    // Handle update file base64 (bisa dari req.body.file_base64 atau data URI di req.body.file_url)
-    let incomingBase64 = req.body.file_base64;
-    if (!incomingBase64 && typeof req.body.file_url === 'string' && req.body.file_url.startsWith('data:')) {
-      incomingBase64 = req.body.file_url.split(',')[1];
     }
 
     if (incomingBase64) {
@@ -599,16 +602,19 @@ router.put('/:id/request-revision', requireAuth, async (req, res) => {
     const sop = await SOPDocument.findByPk(req.params.id);
     if (!sop) return res.status(404).json({ detail: 'SOP tidak ditemukan' });
 
-    // Hanya pembuat atau admin/kepala_bagian yang bisa mengajukan revisi ulang
-    const isOwner = sop.created_by === req.user.id;
+    // Hanya pembuat, rekan satu tim, atau admin/kepala_bagian yang bisa mengajukan revisi ulang
+    const isOwner = !sop.created_by || sop.created_by === req.user.id;
     const isHigherRole = ['admin', 'kepala_bagian'].includes(req.user.role);
-    if (!isOwner && !isHigherRole) {
+    const isSameDept = req.user.department && sop.department && (
+      req.user.department.toLowerCase().trim() === sop.department.toLowerCase().trim()
+    );
+    if (!isOwner && !isHigherRole && !isSameDept) {
       return res.status(403).json({ detail: 'Anda tidak memiliki akses untuk mengajukan revisi ulang SOP ini.' });
     }
 
-    // Hanya SOP yang statusnya rejected/draft yang bisa diajukan revisi ulang
-    if (sop.approval_status !== 'rejected' && sop.status !== 'draft') {
-      return res.status(400).json({ detail: 'Hanya SOP yang ditolak (rejected) yang dapat diajukan revisi ulang.' });
+    // SOP yang statusnya rejected, draft, atau pending dapat diajukan revisi ulang
+    if (sop.approval_status !== 'rejected' && sop.status !== 'draft' && sop.approval_status !== 'pending') {
+      return res.status(400).json({ detail: 'Hanya SOP yang ditolak (rejected) atau draft yang dapat diajukan revisi ulang.' });
     }
 
     const { revision_notes = 'Mengajukan revisi ulang setelah penolakan' } = req.body;
